@@ -1,19 +1,21 @@
 # A 端客户端
 
-`cc-a` 从本仓库启动 Claude Code 终端界面。A 通过一把 A 角色的网关密钥连接 B。B 将请求送到密钥绑定的固定 C 虚拟机，C 使用自己的模型凭证执行推理。每台虚拟机有两个并发位置。macOS 和 Linux 客户端使用 Bun、Python 3 和 ripgrep。
+`claudec` 从本仓库启动 Claude Code 终端界面。A 通过一把 A 角色的网关密钥连接 B。B 将请求送到密钥绑定的固定 C 虚拟机，C 使用自己的模型凭证执行推理。每台虚拟机有两个并发位置。macOS 和 Linux 客户端使用 Bun、Python 3 和 ripgrep。
 
 ## 启动
 
-首次使用或更换密钥时，运行 `cc-a config set-key`，按提示粘贴 B 管理员签发的 A 密钥并回车。输入会隐藏。然后进入工作目录运行 `cc-a`。
+要保存 B 的连接地址，运行 `claudec config set-server` 并输入完整地址，例如 `wss://8.153.176.226/v1/ws`。地址和密钥可分别更新。启动时按 `--url`、`CC_GATEWAY_URL`、已保存的地址、内置地址的顺序选择。
+
+首次使用或更换密钥时，运行 `claudec config set-key`，按提示粘贴 B 管理员签发的 A 密钥并回车。输入会隐藏。然后进入工作目录运行 `claudec`。
 
 A 启动时使用本端网关密钥自动连接 B 的 WSS 入口，并验证 B 的公网 IP 和证书链。
 
-已安装 `cc-a` 启动命令的 Mac 用户可进入项目后输入 `cc-a`，默认使用当前目录，由 B 根据接入密钥选择固定池。直接从源码启动时，在本仓库目录运行以下任一命令，把路径换为要操作的项目。
+已安装 `claudec` 启动命令的 Mac 用户可进入项目后输入 `claudec`，默认使用当前目录，由 B 根据接入密钥选择固定池。直接从源码启动时，在本仓库目录运行以下任一命令，把路径换为要操作的项目。
 
 ~~~sh
-./cc-a --workspace /absolute/path/to/project
-./cc-a --workspace /absolute/path/to/project -p '读取 README.md 并概述'
-./cc-a --workspace /absolute/path/to/project --continue
+./claudec --workspace /absolute/path/to/project
+./claudec --workspace /absolute/path/to/project -p '读取 README.md 并概述'
+./claudec --workspace /absolute/path/to/project --continue
 ~~~
 
 A 只提交本端凭证。绑定、轮换、撤销由 B 管理员通过服务器本地管理接口执行。默认密钥文件为 macOS/Linux 的 `~/.config/cc-a/access.key` 或 Windows 的 `%LOCALAPPDATA%\cc-a\access.key`。也可使用 `--key-file FILE`，文件需要归当前用户所有并限制为仅本人可读。工作区和凭证分开存放。自有网关地址通过 `--url` 设置，支持 WSS 或用于本地测试的回环 WS。
@@ -30,12 +32,12 @@ A 只提交本端凭证。绑定、轮换、撤销由 B 管理员通过服务器
 
 ## 跨平台验收
 
-macOS、Linux 和 WSL 使用 `./cc-a`。Linux 的 Bash 执行器使用 bubblewrap，启动时实际创建隔离环境来检测权限。容器限制用户命名空间时，Bash 不会注册，其余工具仍可使用。
+macOS、Linux 和 WSL 使用 `./claudec`。Linux 的 Bash 执行器使用 bubblewrap，启动时实际创建隔离环境来检测权限。容器限制用户命名空间时，Bash 不会注册，其余工具仍可使用。
 
-Windows 原生入口为 `cc-a.cmd`。Glob 和 Grep 默认使用 PATH 中的 `rg.exe`，Git Bash 使用 Git for Windows。使用 `--key-file` 指定当前 Windows 用户拥有的 NTFS 密钥文件，访问权限应限于本人、SYSTEM 和本机 Administrators。会话记录存储于当前用户的 LocalAppData。Windows 模式使用本机可用的 PowerShell 和 Windows 工作目录。已在这台 Mac 的 Docker Windows 11 ARM64 来宾中验证客户端启动、认证、原版终端审批和真实固定池编程任务。Windows 用户可从客户端目录启动交互会话。
+Windows 原生入口为 `claudec.cmd`。Glob 和 Grep 默认使用 PATH 中的 `rg.exe`，Git Bash 使用 Git for Windows。使用 `--key-file` 指定当前 Windows 用户拥有的 NTFS 密钥文件，访问权限应限于本人、SYSTEM 和本机 Administrators。会话记录存储于当前用户的 LocalAppData。Windows 模式使用本机可用的 PowerShell 和 Windows 工作目录。已在这台 Mac 的 Docker Windows 11 ARM64 来宾中验证客户端启动、认证、原版终端审批和真实固定池编程任务。Windows 用户可从客户端目录启动交互会话。
 
 ~~~powershell
-.\cc-a.cmd --key-file "C:\Keys\access.key" --workspace "C:\Projects\demo"
+.\claudec.cmd --key-file "C:\Keys\access.key" --workspace "C:\Projects\demo"
 ~~~
 
 在 macOS 和 Linux 的客户端目录运行 `bun test src/gateway`。Windows 使用 `bun test src/gateway/client.test.ts src/gateway/native.test.ts src/gateway/readTools.test.ts`。其中只读工具测试启动真实 CLI、本地 MCP 测试服务和 TypeScript 语言服务器，检查网关收到的工具结果。跨平台验收应分别记录安装、工具注册、实际调用和编程任务测试结果。
@@ -53,7 +55,7 @@ server05 的原生 WebSearch 已实际返回 Debian 搜索链接。原生 WebFet
 
 ### 工具验收范围
 
-下表的 35 个工具已在 macOS、本机 Docker Linux 和本机 Docker Windows 11 ARM64 全部实际调用成功。Windows 另通过 PowerShell，共 36 个。只读测试通过 `cc-a -p` 启动客户端。交互测试在终端里确认编辑、命令和计划等操作，并检查工具返回值或工作区文件。
+下表的 35 个工具已在 macOS、本机 Docker Linux 和本机 Docker Windows 11 ARM64 全部实际调用成功。Windows 另通过 PowerShell，共 36 个。只读测试通过 `claudec -p` 启动客户端。交互测试在终端里确认编辑、命令和计划等操作，并检查工具返回值或工作区文件。
 
 | 功能 | 三个平台均已调用成功的工具 |
 | --- | --- |
@@ -63,6 +65,6 @@ server05 的原生 WebSearch 已实际返回 Debian 搜索链接。原生 WebFet
 | 工作区、计划与交互 | EnterWorktree、ExitWorktree、EnterPlanMode、ExitPlanMode、Skill、AskUserQuestion、ReportFindings、EndConversation |
 | 定时与工作流 | CronCreate、CronList、CronDelete、ScheduleWakeup、Monitor、Workflow |
 
-Windows 11 ARM64 的原生 `cc-a.cmd -p` 已返回 11 个正确结果，覆盖 ListAgents、WaitForMcpServers、TaskList、CronList、ListMcpResourcesTool、ReadMcpResourceTool、Read、Glob、Grep、ToolSearch 和 LSP。Windows 的会话恢复用例也已通过，覆盖 `-c` 读取上轮历史、`--print` 接收管道中文输入、无本地审批时拒绝写文件，以及回归用临时目录的清理。Windows 的操作与子代理矩阵分别收到 28 和 5 个回执，其中计划模式下的工作区写入按预期拒绝。另在 Windows 原版交互界面确认 Write 和 Edit，将平方函数从加法改为乘法。PowerShell 运行改后的程序，通过 0、7 和 −3 三个输入的断言。Git Bash 返回了测试标记。上述两组测试通过本地测试网关逐项指定调用。真实固定池编程测试另行验证模型自主选择 Read 和 Edit、本地审批及编辑结果。
+Windows 11 ARM64 的原生 `claudec.cmd -p` 已返回 11 个正确结果，覆盖 ListAgents、WaitForMcpServers、TaskList、CronList、ListMcpResourcesTool、ReadMcpResourceTool、Read、Glob、Grep、ToolSearch 和 LSP。Windows 的会话恢复用例也已通过，覆盖 `-c` 读取上轮历史、`--print` 接收管道中文输入、无本地审批时拒绝写文件，以及回归用临时目录的清理。Windows 的操作与子代理矩阵分别收到 28 和 5 个回执，其中计划模式下的工作区写入按预期拒绝。另在 Windows 原版交互界面确认 Write 和 Edit，将平方函数从加法改为乘法。PowerShell 运行改后的程序，通过 0、7 和 −3 三个输入的断言。Git Bash 返回了测试标记。上述两组测试通过本地测试网关逐项指定调用。真实固定池编程测试另行验证模型自主选择 Read 和 Edit、本地审批及编辑结果。
 
 [三平台验收结果（JSON）](test/gateway/acceptance-results.json)

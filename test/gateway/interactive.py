@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as tmp:
   time.sleep(.05); port=(d/'results').read_text().strip()
   if port:break
  initial=['exercise-fixed-tools'] if scenario=='agent' else []
- p=subprocess.Popen([str(base/'cc-a'),'--url',f'ws://127.0.0.1:{port}/v1/ws','--key-file',str(key),'--workspace',str(project),*initial],stdin=sl,stdout=sl,stderr=subprocess.DEVNULL if os.environ.get('CC_TEST_REDIRECT_STDERR')=='1' else sl,env=dict(os.environ,TERM='xterm-256color',HOME=tmp))
+ p=subprocess.Popen([str(base/'claudec'),'--url',f'ws://127.0.0.1:{port}/v1/ws','--key-file',str(key),'--workspace',str(project),*initial],stdin=sl,stdout=sl,stderr=subprocess.DEVNULL if os.environ.get('CC_TEST_REDIRECT_STDERR')=='1' else sl,env=dict(os.environ,TERM='xterm-256color',HOME=tmp))
  os.close(sl);data=b'';screen=b'';sent=bool(initial);start=time.monotonic()
  try:
   while time.monotonic()-start<110:

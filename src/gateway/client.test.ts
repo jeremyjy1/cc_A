@@ -40,9 +40,16 @@ test.skipIf(process.platform==='win32')('POSIX repeated print prompts share one 
     }
   })
   try {
-    const p=Bun.spawn([join(import.meta.dir,'../../cc-a'),'--workspace',workspace,'--key-file',join(base,'key'),
-      '--url',`ws://127.0.0.1:${server.port}/v1/ws`,'-p','first','-p','second'],
-      {stdin:'ignore',stdout:'pipe',stderr:'pipe'})
+    const env = {...process.env, HOME:base, CC_GATEWAY_URL:''}
+    const url = `ws://127.0.0.1:${server.port}/v1/ws`
+    for (const [input, status] of [[url,0], ['ws://example.com/v1/ws',1], ['wss://user:password@example.com/',1]] as const) {
+      const setting = Bun.spawn([...cli,'config','set-server'], {
+        env, stdin:new Blob([input+'\n']), stdout:'pipe', stderr:'pipe',
+      })
+      expect(await setting.exited).toBe(status)
+    }
+    const p=Bun.spawn([...cli,'--workspace',workspace,'--key-file',join(base,'key'),
+      '-p','first','-p','second'], {env,stdin:'ignore',stdout:'pipe',stderr:'pipe'})
     const stdout=await new Response(p.stdout).text()
     expect(await p.exited).toBe(0)
     expect(connections).toBe(1)

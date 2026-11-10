@@ -1,7 +1,7 @@
 import {rootCertificates} from 'node:tls'
-import {configureKey,defaultKeyPath} from './configure'
+import {configureKey,configureServer,defaultKeyPath,parseServer,serverPath} from './configure'
 import { executorOS, shellProfiles } from './platform'
-import { constants, closeSync, fstatSync, openSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { constants, closeSync, fstatSync, openSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -13,7 +13,7 @@ import { execute, inside, mutations, tools } from './tools'
 
 const defaultEndpoint = new URL('wss://8.153.176.226/v1/ws')
 
-const usage = 'cc-a config set-key\ncc-a [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
+const usage = 'claudec config set-server\nclaudec config set-key\nclaudec [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
 const safe = (s: string) => stripVTControlCharacters(s).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, '')
 const ui = (s: string) => process.stderr.write(safe(s))
 type Ask = (s: string, signal: AbortSignal) => Promise<boolean>
@@ -41,16 +41,26 @@ function checkWindowsKey(path: string) {
   if(res.status!==0)throw Error('Unable to verify key permissions with Windows PowerShell')
 }
 
-function loadKey(path: string) {
+function readPrivateSetting(path: string, maxBytes: number) {
   if(process.platform==='win32')checkWindowsKey(path)
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const s = fstatSync(fd)
-    if (!s.isFile() || (process.platform!=='win32' && (s.uid !== process.getuid?.() || (s.mode & 0o077))) || s.size > 256) throw new Error('A key file must be a private, user-owned regular file (0600)')
-    const key = readFileSync(fd,'utf8').trim()
-    if (!/^gw1_[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('Invalid gateway key')
-    return key
+    if (!s.isFile() || (process.platform!=='win32' && (s.uid !== process.getuid?.() || (s.mode & 0o077))) || s.size > maxBytes) throw new Error('A configuration file must be a private, user-owned regular file (0600)')
+    return readFileSync(fd,'utf8').trim()
   } finally {closeSync(fd)}
+}
+
+function loadKey(path: string) {
+  const key = readPrivateSetting(path, 256)
+  if (!/^gw1_[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('Invalid gateway key')
+  return key
+}
+
+function savedServer() {
+  const path = serverPath()
+  if (!lstatSync(path, {throwIfNoEntry:false})) return defaultEndpoint.href
+  return readPrivateSetting(path, 2049)
 }
 
 type Frame = Record<string, any>
@@ -197,8 +207,12 @@ export class Gateway {
 }
 
 export async function gatewayMain(args: string[]) {
+  if(args[0]==='config' && args[1]==='set-server'){
+    if(args.length!==2)throw Error('用法：claudec config set-server')
+    return configureServer()
+  }
   if(args[0]==='config' && args[1]==='set-key'){
-    if(args.length!==2)throw Error('用法：cc-a config set-key（通过提示或标准输入提供密钥）')
+    if(args.length!==2)throw Error('用法：claudec config set-key（通过提示或标准输入提供密钥）')
     return configureKey()
   }
   const {values:v,positionals,tokens}=parseArgs({args,allowPositionals:true,tokens:true,options:{
@@ -234,8 +248,7 @@ export async function gatewayMain(args: string[]) {
   const root=realpathSync(resolve(base,v.workspace||'.'))
   if(!statSync(root).isDirectory())throw Error('Invalid workspace directory')
   if(!v['text-only']&&(inside(root,realpathSync(keyPath))||inside(root,homedir())))throw Error('Choose a project workspace separate from the gateway credentials')
-  const url=new URL(v.url||process.env.CC_GATEWAY_URL||defaultEndpoint.href)
-  if(url.username||url.password||url.search||url.hash||!(url.protocol==='wss:'||url.protocol==='ws:'&&['127.0.0.1','[::1]'].includes(url.hostname)))throw Error('Use WSS for a remote gateway or WS on loopback')
+  const url=parseServer(v.url||process.env.CC_GATEWAY_URL||savedServer())
   const key=loadKey(keyPath)
   const terminal=v.simple ? process.stderr : process.stdout
   const interactive=Boolean(process.stdin.isTTY && terminal.isTTY)

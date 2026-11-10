@@ -1,4 +1,4 @@
-import {mkdirSync,openSync,closeSync,writeFileSync,fsyncSync,renameSync,unlinkSync} from 'node:fs'
+import {mkdirSync,openSync,closeSync,readSync,writeFileSync,fsyncSync,renameSync,unlinkSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join,dirname} from 'node:path'
@@ -54,7 +54,11 @@ async function readSecret() {
 export async function configureKey(){
   const key=(await readSecret()).trim()
   if(!/^gw1_[A-Za-z0-9_-]{43}$/.test(key)||Buffer.from(key.slice(4),'base64url').toString('base64url')!==key.slice(4))throw Error('密钥格式无效')
-  const path=defaultKeyPath()
+  saveSetting(defaultKeyPath(),key)
+  console.log('A 端默认密钥已保存。')
+}
+
+function saveSetting(path:string,value:string){
   mkdirSync(dirname(path),{recursive:true,mode:0o700})
   const temp=join(dirname(path),'.access-'+randomUUID())
   const fd=openSync(temp,'wx',0o600)
@@ -74,10 +78,37 @@ export async function configureKey(){
         const result=spawnSync(ps,['-NoProfile','-NonInteractive','-Command',script],{env:{...process.env,CC_A_NEW_KEY:temp},stdio:'ignore',timeout:60000})
         if(result.status!==0)throw Error('无法设置本地密钥的访问权限')
       }
-      writeFileSync(fd,key+'\n')
+      writeFileSync(fd,value+'\n')
       fsyncSync(fd)
     }finally{closeSync(fd)}
     renameSync(temp,path)
   }catch(error){unlinkSync(temp);throw error}
-  console.log('A 端默认密钥已保存。')
+}
+
+export function serverPath() {
+  return join(dirname(defaultKeyPath()), 'server.url')
+}
+
+export function parseServer(value: string): URL {
+  const raw = value.trim()
+  const url = URL.canParse(raw) ? new URL(raw) : undefined
+  const local = url?.protocol === 'ws:' && ['127.0.0.1', '[::1]'].includes(url.hostname)
+  if (!url || (!local && url.protocol !== 'wss:') || url.username || url.password ||
+      /[?#\\\s]/u.test(raw) || Buffer.byteLength(url.href) > 2048) {
+    throw Error('请输入有效的 wss:// 服务器地址；本机测试可用 ws://127.0.0.1 或 ws://[::1]')
+  }
+  return url
+}
+
+export function configureServer() {
+  if (process.stdin.isTTY) process.stderr.write('请输入 B 服务器地址（例如 wss://8.153.176.226/v1/ws）：')
+  const bytes: number[] = []
+  const byte = Buffer.alloc(1)
+  while (readSync(0, byte, 0, 1, null) && byte[0] !== 10) {
+    if (bytes.length >= 2049) throw Error('服务器地址过长')
+    bytes.push(byte[0]!)
+  }
+  const url = parseServer(Buffer.from(bytes).toString('utf8'))
+  saveSetting(serverPath(), url.href)
+  console.log('A 端默认服务器地址已保存。')
 }

@@ -3,7 +3,7 @@ import {writeFileSync} from 'node:fs'
 import {resolve,join} from 'node:path'
 
 export const repo=resolve(import.meta.dir,'../../..')
-export const cli=process.platform==='win32' ? ['cmd.exe','/d','/c','cc-a.cmd'] : [join(repo,'cc-a')]
+export const cli=process.platform==='win32' ? ['cmd.exe','/d','/c','claudec.cmd'] : [join(repo,'claudec')]
 
 export function writeTestKey(keyPath:string,value:string) {
   writeFileSync(keyPath, value, {mode:0o600})

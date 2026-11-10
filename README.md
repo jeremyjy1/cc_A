@@ -25,7 +25,7 @@ The source map file in the published npm package contained a reference to the fu
 
 - **[Bun](https://bun.sh)** v1.3+ (the project's runtime)
 - **Node.js** v18+ (for npm package installation)
-- An **Anthropic API key** (set as `ANTHROPIC_API_KEY` environment variable)
+- A gateway access key issued for the A role by the B administrator
 
 ### Install & Run
 
@@ -37,7 +37,9 @@ source ~/.bash_profile  # or restart your terminal
 # 2. Install dependencies
 npm install --legacy-peer-deps
 
-# 3. Run Claude Code
+# 3. Configure and start the A client
+./claudec config set-server
+./claudec config set-key
 bun run start
 
 # Or with arguments:
