@@ -477,7 +477,7 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
   assistantMessage,
   toolUseID,
 ): Promise<PermissionDecision> => {
-  const result = await hasPermissionsToUseToolInner(tool, input, context)
+  const result = await getLocalToolPermissionDecision(tool, input, context)
 
 
   // Reset consecutive denials on any allowed tool use in auto mode.
@@ -1155,10 +1155,11 @@ export async function checkRuleBasedPermissions(
   return null
 }
 
-async function hasPermissionsToUseToolInner(
+export async function getLocalToolPermissionDecision(
   tool: Tool,
   input: { [key: string]: unknown },
   context: ToolUseContext,
+  { forGatewayReview = false }: { forGatewayReview?: boolean } = {},
 ): Promise<PermissionDecision> {
   if (context.abortController.signal.aborted) {
     throw new AbortError()
@@ -1192,7 +1193,7 @@ async function hasPermissionsToUseToolInner(
       SandboxManager.isAutoAllowBashIfSandboxedEnabled() &&
       shouldUseSandbox(input)
 
-    if (!canSandboxAutoAllow) {
+    if (forGatewayReview || !canSandboxAutoAllow) {
       return {
         behavior: 'ask',
         decisionReason: {
@@ -1219,6 +1220,7 @@ async function hasPermissionsToUseToolInner(
     if (e instanceof AbortError || e instanceof APIUserAbortError) {
       throw e
     }
+    if (forGatewayReview) throw e
     logError(e)
   }
 
@@ -1258,6 +1260,9 @@ async function hasPermissionsToUseToolInner(
   ) {
     return toolPermissionResult
   }
+
+  // Preserve tool-specific asks (including compound commands) before broad allow rules.
+  if (forGatewayReview && toolPermissionResult.behavior === 'ask') return toolPermissionResult
 
   // 2a. Check if mode allows the tool to run
   // IMPORTANT: Call getAppState() to get the latest value
@@ -1302,6 +1307,7 @@ async function hasPermissionsToUseToolInner(
       ? {
           ...toolPermissionResult,
           behavior: 'ask' as const,
+          ...(forGatewayReview && { fromPassthrough: true as const }),
           message: createPermissionRequestMessage(
             tool.name,
             toolPermissionResult.decisionReason,

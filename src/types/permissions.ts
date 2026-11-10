@@ -202,6 +202,7 @@ export type PermissionAskDecision<
   Input extends { [key: string]: unknown } = { [key: string]: unknown },
 > = {
   behavior: 'ask'
+  fromPassthrough?: true
   message: string
   updatedInput?: Input
   decisionReason?: PermissionDecisionReason

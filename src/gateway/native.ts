@@ -9,14 +9,14 @@ import { findToolByName } from '../Tool'
 import type { QueryParams } from '../query'
 import { runTools } from '../services/tools/toolOrchestration'
 import { createAssistantAPIErrorMessage, createAssistantMessage, createUserMessage } from '../utils/messages'
-import { hasPermissionsToUseTool } from '../utils/permissions/permissions'
+import { hasPermissionsToUseTool, getLocalToolPermissionDecision } from '../utils/permissions/permissions'
 import { Stream } from '../utils/stream'
 import { getCwd } from '../utils/cwd'
 import { checkWorkspaceTarget, execute, fileTools, tools as guardedTools, mutations } from './tools'
 import { sessionInference, type InferenceOptions } from './inference'
 import type { Gateway } from './client'
 import { conversationPrompt, conversationImages, remoteContinuation } from './transcript'
-import { autoReviewPrompt } from './autoReview'
+import { autoReviewPrompt, hostReviewable } from './autoReview'
 import { embeddedCatalog } from './registry'
 
 type Connection = { client: Gateway; root: string; textOnly: boolean; inference?: () => InferenceOptions }
@@ -104,30 +104,39 @@ export async function* nativeQuery(params: QueryParams) {
           const gate: typeof params.canUseTool = async (t,a,c,m,callId,force) => {
             const currentMode=c.getAppState().toolPermissionContext.mode
             if (!requiresApproval || t.name!==tool.name || callId!==id) return params.canUseTool(t,a,c,m,callId,force)
-            // Evaluate an ordinary Auto edit against the same local rules as acceptEdits
-            // before an independent, tool-free turn can review the proposed change.
-            const reviewAction=currentMode==='auto' && (name==='Write' || name==='Edit' || readOnlyShell)
-            const checked=reviewAction ? {...c,getAppState:()=>{
-              const state=c.getAppState()
-              return {...state,toolPermissionContext:{...state.toolPermissionContext,mode:'acceptEdits' as const}}
+            const fileEdit = name === 'Write' || name === 'Edit'
+            const auto = currentMode === 'auto' && (fileEdit || isShell)
+            const sandboxedShell = name === 'Bash' && process.platform !== 'win32'
+            const localPermissions = c.getAppState().toolPermissionContext
+            const checked = auto ? {...c, getAppState: () => {
+              const state = c.getAppState()
+              return {...state, toolPermissionContext: {...state.toolPermissionContext,
+                mode: fileEdit || sandboxedShell ? 'acceptEdits' as const : 'default' as const}}
             }} : c
-            const decision=await hasPermissionsToUseTool(t,a,checked,m,callId)
+            const decision = auto
+              ? await getLocalToolPermissionDecision(t, a, checked, {forGatewayReview:true})
+              : await hasPermissionsToUseTool(t,a,checked,m,callId)
             if(decision.behavior==='deny')return decision
             if(force && force.behavior!=='allow'){
               if(force.behavior==='ask' && (currentMode==='dontAsk' || c.options.isNonInteractiveSession))return {behavior:'deny',message:'Local approval required'}
               return params.canUseTool(t,a,c,m,callId,force)
             }
-            if(reviewAction && decision.behavior==='allow'){
-              const prompt=autoReviewPrompt(params.messages,name,decision.updatedInput??a)
-              if(!prompt)return {behavior:'deny',message:'Auto review needs a complete, bounded request'}
-              const allowed=await review(prompt)
-              if(!allowed || local.signal.aborted || c.getAppState().toolPermissionContext.mode!=='auto')
-                return {behavior:'deny',message:'Auto review declined or unavailable'}
-              return decision
-            }
-            if(currentMode==='auto' && isShell && !readOnlyShell && decision.behavior==='allow' && decision.decisionReason?.type!=='rule'){
-              if(c.options.isNonInteractiveSession)return {behavior:'deny',message:'Shell command needs local approval'}
-              return params.canUseTool(t,a,c,m,callId,{behavior:'ask',message:'Approve this shell command',updatedInput:a})
+            if (auto) {
+              // Ordinary read-only shells and explicit local allows need no second decision.
+              if (decision.behavior === 'allow' && (readOnlyShell || decision.decisionReason?.type === 'rule')) return decision
+              const canReview = fileEdit || sandboxedShell || readOnlyShell
+              if (canReview && hostReviewable(decision) && !t.requiresUserInteraction?.()) {
+                const updatedInput = decision.updatedInput ?? a
+                const prompt = autoReviewPrompt(params.messages, name, updatedInput)
+                if (!prompt) return {behavior:'deny',message:'Auto review needs a complete, bounded request'}
+                const allowed = await review(prompt)
+                if (!allowed || local.signal.aborted || c.getAppState().toolPermissionContext !== localPermissions)
+                  return {behavior:'deny',message:'Auto review declined or unavailable'}
+                return {behavior:'allow',updatedInput}
+              }
+              if (c.options.isNonInteractiveSession) return {behavior:'deny',message:'Local approval required'}
+              const manual = decision.behavior === 'ask' ? decision : {behavior:'ask' as const,message:'Local approval required',updatedInput:a}
+              return params.canUseTool(t,a,c,m,callId,manual)
             }
             if(currentMode!=='default' && (guardedTools.includes(name) || name==='PowerShell' || currentMode==='bypassPermissions' || decision.decisionReason?.type==='rule')){
               return params.canUseTool(t,a,c,m,callId,decision)

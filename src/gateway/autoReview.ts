@@ -1,3 +1,18 @@
+import type { PermissionResult } from '../types/permissions'
+
+// A compound shell decision can wrap explicit ask/deny rules on individual segments.
+export function hostReviewable(result: PermissionResult): boolean {
+  if (result.behavior === 'deny') return false
+  if ('blockedPath' in result && result.blockedPath) return false
+  const reason = result.decisionReason
+  if (reason?.type === 'subcommandResults') {
+    return reason.reasons.size > 0 && [...reason.reasons.values()].every(hostReviewable)
+  }
+  if (result.behavior === 'allow') return true
+  if (reason && reason.type !== 'other') return false
+  return result.behavior === 'passthrough' || result.fromPassthrough === true
+}
+
 type TranscriptRow = {
   type: string
   isMeta?: boolean
