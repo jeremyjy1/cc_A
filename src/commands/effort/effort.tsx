@@ -60,6 +60,7 @@ function setEffortValue(effortValue: EffortValue): EffortCommandResult {
   };
 }
 export function showCurrentEffort(appStateEffort: EffortValue | undefined, model: string): EffortCommandResult {
+  if (process.env.CC_A_NATIVE === '1') return {message: 'Session effort: ' + (appStateEffort ?? 'auto (C pool default)')};
   const envOverride = getEffortEnvOverride();
   const effectiveValue = envOverride === null ? undefined : envOverride ?? appStateEffort;
   if (effectiveValue === undefined) {
@@ -106,12 +107,17 @@ function unsetEffortLevel(): EffortCommandResult {
 }
 export function executeEffort(args: string): EffortCommandResult {
   const normalized = args.toLowerCase();
+  if (process.env.CC_A_NATIVE === '1') {
+    if (normalized === 'auto' || normalized === 'unset') return {message: 'Effort follows the C pool default', effortUpdate: {value: undefined}};
+    if (isEffortLevel(normalized)) return {message: 'Session effort: ' + normalized, effortUpdate: {value: normalized}};
+    return {message: 'Choose low, medium, high, xhigh, max or auto'};
+  }
   if (normalized === 'auto' || normalized === 'unset') {
     return unsetEffortLevel();
   }
   if (!isEffortLevel(normalized)) {
     return {
-      message: `Invalid argument: ${args}. Valid options are: low, medium, high, max, auto`
+      message: `Invalid argument: ${args}. Valid options are: low, medium, high, xhigh, max, auto`
     };
   }
   return setEffortValue(normalized);
@@ -171,7 +177,7 @@ function ApplyEffortAndClose(t0) {
 export async function call(onDone: LocalJSXCommandOnDone, _context: unknown, args?: string): Promise<React.ReactNode> {
   args = args?.trim() || '';
   if (COMMON_HELP_ARGS.includes(args)) {
-    onDone('Usage: /effort [low|medium|high|max|auto]\n\nEffort levels:\n- low: Quick, straightforward implementation\n- medium: Balanced approach with standard testing\n- high: Comprehensive implementation with extensive testing\n- max: Maximum capability with deepest reasoning (Opus 4.6 only)\n- auto: Use the default effort level for your model');
+    onDone('Usage: /effort [low|medium|high|xhigh|max|auto]\n\nEffort levels:\n- low: Quick, straightforward implementation\n- medium: Balanced approach with standard testing\n- high: Comprehensive implementation with extensive testing\n- xhigh: Extra reasoning for complex tasks\n- max: Highest effort offered by the model\n- auto: Use the default effort level for your model');
     return;
   }
   if (!args || args === 'current' || args === 'status') {

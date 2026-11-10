@@ -97,7 +97,7 @@ export function onChangeAppState({
     newState.mainLoopModel === null
   ) {
     // Remove from settings
-    updateSettingsForSource('userSettings', { model: undefined })
+    if (process.env.CC_A_NATIVE !== '1') updateSettingsForSource('userSettings', { model: undefined })
     setMainLoopModelOverride(null)
   }
 
@@ -107,7 +107,7 @@ export function onChangeAppState({
     newState.mainLoopModel !== null
   ) {
     // Save to settings
-    updateSettingsForSource('userSettings', { model: newState.mainLoopModel })
+    if (process.env.CC_A_NATIVE !== '1') updateSettingsForSource('userSettings', { model: newState.mainLoopModel })
     setMainLoopModelOverride(newState.mainLoopModel)
   }
 

@@ -1,3 +1,4 @@
+import { validModel } from '../../gateway/inference.js';
 import { c as _c } from "react/compiler-runtime";
 import chalk from 'chalk';
 import * as React from 'react';
@@ -148,6 +149,12 @@ function SetModelAndClose({
         return;
       }
 
+      if (process.env.CC_A_NATIVE === '1') {
+        if (model && !validModel(model)) onDone('Invalid model ID', {display: 'system'});
+        else setModel(model);
+        return;
+      }
+
       // @[MODEL LAUNCH]: Update check for 1M access.
       if (model && isOpus1mUnavailable(model)) {
         onDone(`Opus 4.6 with 1M context is not available for your account. Learn more: https://code.claude.com/docs/en/model-config#extended-context-with-1m`, {
@@ -291,6 +298,7 @@ export const call: LocalJSXCommandCall = async (onDone, _context, args) => {
   return <ModelPickerWrapper onDone={onDone} />;
 };
 function renderModelLabel(model: string | null): string {
+  if (process.env.CC_A_NATIVE === '1') return model ?? 'C pool default';
   const rendered = renderDefaultModelSetting(model ?? getDefaultMainLoopModelSetting());
   return model === null ? `${rendered} (default)` : rendered;
 }

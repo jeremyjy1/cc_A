@@ -1034,7 +1034,7 @@ async function* queryModel(
     const prefix = instruction ? instruction + '\n\n' : ''
     const prompt = prefix + conversationPrompt(messages, 16000 - Buffer.byteLength(prefix))
     const answer = await nativeGateway.client.run(nativeGateway.root, prompt, false, async () => false, {
-      names: [], signal, call: async () => { throw Error('Text-only request') },
+      inference: nativeGateway.inference?.(), names: [], signal, call: async () => { throw Error('Text-only request') },
     })
     yield createAssistantMessage({content:answer})
     return

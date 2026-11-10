@@ -5,6 +5,7 @@ import type { PermissionMode } from './PermissionMode.js'
 import {
   getAutoModeUnavailableReason,
   isAutoModeGateEnabled,
+  isAutoModeDisabledBySettings,
   transitionPermissionMode,
 } from './permissionSetup.js'
 
@@ -15,6 +16,7 @@ import {
 // (permissionSetup.ts:~559), which would silently crash the shift+tab handler
 // and leave the user stuck at the current mode.
 function canCycleToAuto(ctx: ToolPermissionContext): boolean {
+  if (process.env.CC_A_NATIVE === '1') return !isAutoModeDisabledBySettings()
   if (feature('TRANSCRIPT_CLASSIFIER')) {
     const gateEnabled = isAutoModeGateEnabled()
     const can = !!ctx.isAutoModeAvailable && gateEnabled

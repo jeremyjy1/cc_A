@@ -54,6 +54,7 @@ export type FileHistoryState = {
 const MAX_SNAPSHOTS = 100
 export type DiffStats =
   | {
+      fileNamesOnly?: boolean
       filesChanged?: string[]
       insertions: number
       deletions: number
@@ -876,10 +877,12 @@ function maybeShortenFilePath(filePath: string): string {
 }
 
 function maybeExpandFilePath(filePath: string): string {
-  if (isAbsolute(filePath)) {
-    return filePath
+  const path = isAbsolute(filePath) ? filePath : join(getOriginalCwd(), filePath)
+  if (process.env.CC_A_NATIVE === '1') {
+    const {checkRestoreTarget} = require('../gateway/workspace')
+    checkRestoreTarget(path)
   }
-  return join(getOriginalCwd(), filePath)
+  return path
 }
 
 /**

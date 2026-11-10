@@ -1,3 +1,4 @@
+import { sessionInference } from './inference'
 import React from 'react'
 import type {CanUseToolFn} from '../hooks/useCanUseTool'
 import {runTools} from '../services/tools/toolOrchestration'
@@ -136,10 +137,11 @@ async function local(name:string,a:any,ctx:ToolUseContext,canUseTool:CanUseToolF
       }
       if(typeof script!=='string'||!/^\s*export\s+const\s+meta\s*=/.test(script))throw Error('Expected a workflow script beginning with export const meta')
       const cache=new Map(previous?.cache)
+      const inference = sessionInference(ctx.getAppState())
       const id=job(ctx,'wf',async s=>{
         const {nativeGateway}=await import('./native')
         if(!nativeGateway)throw Error('No fixed pool')
-        return evaluateWorkflow(script,a.args,s,p=>nativeGateway.client.run(root,p,false,async()=>false,{names:[],signal:s,call:async()=>{throw Error('Unexpected tool')}}),cache)
+        return evaluateWorkflow(script,a.args,s,p=>nativeGateway.client.run(root,p,false,async()=>false,{inference,names:[],signal:s,call:async()=>{throw Error('Unexpected tool')}}),cache)
       })
       workflows.set(id,{script,cache,owner:who})
       return {status:'async_launched',taskId:id,runId:id,taskType:'local_workflow'}

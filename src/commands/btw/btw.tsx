@@ -88,6 +88,20 @@ function BtwSideQuestion(t0) {
       const fetchResponse = async function fetchResponse() {
         ;
         try {
+          if (process.env.CC_A_NATIVE === '1') {
+            const {nativeGateway} = await import('../../gateway/native.js');
+            const {conversationPrompt} = await import('../../gateway/transcript.js');
+            const {sessionInference} = await import('../../gateway/inference.js');
+            if (!nativeGateway) throw Error('No active gateway session');
+            const history = getMessagesAfterCompactBoundary(stripInProgressAssistantMessage(context.messages));
+            const prompt = conversationPrompt([...history, {type:'user', message:{content:question}}]);
+            const answer = await nativeGateway.client.run(nativeGateway.root, prompt, false, async () => false, {
+              inference: sessionInference(context.getAppState()), names: [], signal: abortController.signal,
+              call: async () => { throw Error('Side questions use no workspace tools'); },
+            });
+            if (!abortController.signal.aborted) setResponse(answer);
+            return;
+          }
           const cacheSafeParams = await buildCacheSafeParams(context);
           const result = await runSideQuestion({
             question,

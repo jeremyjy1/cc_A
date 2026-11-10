@@ -904,7 +904,9 @@ async function getMessagesForPromptSlashCommand(command: CommandBase & PromptCom
     uuid
   }), createUserMessage({
     content: mainMessageContent,
-    isMeta: true
+    ...(process.env.CC_A_NATIVE === '1' && command.name === 'init' && command.source === 'builtin'
+      ? {isVisibleInTranscriptOnly: true as const}
+      : {isMeta: true as const})
   }), ...attachmentMessages, createAttachmentMessage({
     type: 'command_permissions',
     allowedTools: additionalAllowedTools,

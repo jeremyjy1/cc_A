@@ -481,8 +481,8 @@ export async function getCommands(cwd: string): Promise<Command[]> {
 
   // Build base commands without dynamic skills
   const gatewayCommands = new Set([
-    'agents','branch','clear','color','compact','context','copy','diff','exit',
-    'export','files','help','keybindings','memory','permissions','plan','rename',
+    'add-dir','agents','branch','btw','init','rewind','clear','color','compact','context','copy','diff','exit',
+    'export','files','help','keybindings','memory','model','effort','permissions','plan','rename',
     'resume','skills','tasks','theme','vim',
   ])
   const baseCommands = allCommands.filter(

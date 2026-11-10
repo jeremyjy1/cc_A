@@ -78,7 +78,7 @@ function command(bin: string, args: string[], cwd: string, signal: AbortSignal, 
   })
 }
 
-export async function execute(root: string, name: string, a: Args, signal: AbortSignal): Promise<string> {
+export async function execute(root: string, name: string, a: Args, signal: AbortSignal, additional: readonly string[] = []): Promise<string> {
   signal.throwIfAborted()
   if (fileTools.includes(name)) {
     return command('/usr/bin/python3', ['-I', import.meta.dir + '/files.py', name], root, signal, JSON.stringify(a))
@@ -86,19 +86,23 @@ export async function execute(root: string, name: string, a: Args, signal: Abort
   if (name === 'Bash') {
     if (a.dangerouslyDisableSandbox || a.run_in_background || typeof a.command !== 'string') throw new Error('Only foreground sandboxed Bash is available')
     if (!sandboxedBashAvailable()) throw Error('Bash requires a working workspace sandbox')
+    const roots = [...new Set([root, ...additional])]
     if (process.platform==='linux') {
       const binds = ['/usr','/bin','/lib','/lib64','/sbin'].filter(existsSync)
         .flatMap(path=>['--ro-bind',path,path])
-      const gitDir=resolve(root,'.git')
-      const gitProtection=existsSync(gitDir)?['--ro-bind',gitDir,gitDir]:[]
+      const workspaceBinds = roots.flatMap(dir => ['--bind',dir,dir])
+      const gitProtection = roots.map(dir => resolve(dir,'.git')).filter(existsSync).flatMap(dir => ['--ro-bind',dir,dir])
       const args=['--unshare-all','--die-with-parent','--new-session',...binds,'--dev','/dev',...linuxProcMount(),'--tmpfs','/tmp',
-        '--bind',root,root,...gitProtection,'--chdir',root,'--','/bin/bash','--noprofile','--norc','-c',a.command]
+        ...workspaceBinds,...gitProtection,'--chdir',root,'--','/bin/bash','--noprofile','--norc','-c',a.command]
       return command(Bun.which('bwrap')!,args,root,signal,'',Math.min(55000,Math.max(1,a.timeout??55000)))
     }
+    const rootRules = roots.map((_,i) => '(subpath (param "ROOT'+i+'"))').join(' ')
+    const gitRules = roots.map((_,i) => '(subpath (param "GIT'+i+'"))').join(' ')
+    const bindings = roots.flatMap((dir,i) => ['-D','ROOT'+i+'='+dir,'-D','GIT'+i+'='+resolve(dir,'.git')])
     const rules = '(version 1)(deny default)(import "system.sb")(allow file-map-executable (subpath "/Library/Developer/CommandLineTools") (subpath "/usr") (subpath "/bin") (subpath "/sbin"))(allow process-exec process-fork sysctl-read file-read-metadata)' +
-      '(allow file-read* (subpath "/Library/Developer/CommandLineTools") (subpath "/System") (subpath "/usr") (subpath "/bin") (subpath "/sbin") (subpath "/Library/Apple") (literal "/dev/null") (literal "/dev/urandom") (subpath (param "ROOT")))' +
-      '(allow file-write* (subpath (param "ROOT")) (literal "/dev/null"))(deny file-write* (subpath (param "GIT")))'
-    return command('/usr/bin/sandbox-exec', ['-D', 'ROOT=' + root, '-D', 'GIT=' + root + '/.git', '-p', rules, '/bin/bash', '--noprofile', '--norc', '-c', a.command], root, signal, '', Math.min(55000, Math.max(1, a.timeout ?? 55000)))
+      '(allow file-read* (subpath "/Library/Developer/CommandLineTools") (subpath "/System") (subpath "/usr") (subpath "/bin") (subpath "/sbin") (subpath "/Library/Apple") (literal "/dev/null") (literal "/dev/urandom") ' + rootRules + ')' +
+      '(allow file-write* ' + rootRules + ' (literal "/dev/null"))(deny file-write* ' + gitRules + ')'
+    return command('/usr/bin/sandbox-exec', [...bindings, '-p', rules, '/bin/bash', '--noprofile', '--norc', '-c', a.command], root, signal, '', Math.min(55000, Math.max(1, a.timeout ?? 55000)))
   }
   if (name !== 'Glob' && name !== 'Grep') throw new Error('Tool unavailable on this client')
   const target = realpathSync(resolve(root, a.path || '.'))

@@ -68,6 +68,15 @@ export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXComma
 
   // Helper to handle adding a directory (shared by both with-path and no-path cases)
   const handleAddDirectory = async (path: string, remember = false) => {
+    if (process.env.CC_A_NATIVE === '1') {
+      try {
+        const {addWorkspaceDirectory} = await import('../../gateway/workspace.js');
+        path = addWorkspaceDirectory(path, () => context.getAppState().toolPermissionContext.additionalWorkingDirectories);
+      } catch (error) {
+        onDone(error instanceof Error ? error.message : 'Invalid workspace directory');
+        return;
+      }
+    }
     const destination: PermissionUpdateDestination = remember ? 'localSettings' : 'session';
     const permissionUpdate = {
       type: 'addDirectories' as const,

@@ -3,6 +3,7 @@ import z from 'zod/v4'
 import { PAUSE_ICON } from '../../constants/figures.js'
 // Types extracted to src/types/permissions.ts to break import cycles
 import {
+  gatewayAutoMode,
   EXTERNAL_PERMISSION_MODES,
   type ExternalPermissionMode,
   PERMISSION_MODES,
@@ -77,7 +78,7 @@ const PERMISSION_MODE_CONFIG: Partial<
     color: 'error',
     external: 'dontAsk',
   },
-  ...(feature('TRANSCRIPT_CLASSIFIER')
+  ...(gatewayAutoMode || feature('TRANSCRIPT_CLASSIFIER')
     ? {
         auto: {
           title: 'Auto mode',

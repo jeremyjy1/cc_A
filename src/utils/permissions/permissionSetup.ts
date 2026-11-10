@@ -775,6 +775,10 @@ export function initialPermissionModeFromCLI({
   let result: { mode: PermissionMode; notification?: string } | undefined
 
   for (const mode of orderedModes) {
+    if (mode === 'auto' && isAutoModeDisabledBySettings()) {
+      notification = 'Auto mode is disabled by settings'
+      continue
+    }
     if (mode === 'bypassPermissions' && disableBypassPermissionsMode) {
       if (growthBookDisableBypassPermissionsMode) {
         logForDebugging('bypassPermissions mode is disabled by Statsig gate', {
@@ -1266,7 +1270,7 @@ export function shouldDisableBypassPermissions(): Promise<boolean> {
   return checkSecurityRestrictionGate('tengu_disable_bypass_permissions_mode')
 }
 
-function isAutoModeDisabledBySettings(): boolean {
+export function isAutoModeDisabledBySettings(): boolean {
   const settings = getSettings_DEPRECATED() || {}
   return (
     (settings as { disableAutoMode?: 'disable' }).disableAutoMode ===

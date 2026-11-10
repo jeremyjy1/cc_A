@@ -227,7 +227,9 @@ export function ModelPicker(t0) {
       logEvent("tengu_model_command_menu_effort", {
         effort: effort as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
       });
-      if (!skipSettingsWrite) {
+      if (process.env.CC_A_NATIVE === '1') {
+        if (hasToggledEffort) setAppState(prev => ({...prev, effortValue: effort}));
+      } else if (!skipSettingsWrite) {
         const effortLevel = resolvePickerEffortPersistence(effort, getDefaultEffortLevelForOption(value_0), getSettingsForSource("userSettings")?.effortLevel, hasToggledEffort);
         const persistable = toPersistableEffort(effortLevel);
         if (persistable !== undefined) {

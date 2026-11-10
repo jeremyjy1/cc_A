@@ -378,7 +378,7 @@ export function MessageSelector({
                                 <Text dimColor={!isSelected} color="inactive">
                                   {numFilesChanged ? <>
                                       {numFilesChanged === 1 && metadata.filesChanged![0] ? `${path.basename(metadata.filesChanged![0])} ` : `${numFilesChanged} files changed `}
-                                      <DiffStatsText diffStats={metadata} />
+                                      {!metadata.fileNamesOnly && <DiffStatsText diffStats={metadata} />}
                                     </> : <>No code changes</>}
                                 </Text>
                               </> : <Text dimColor color="warning">
@@ -729,11 +729,17 @@ function computeDiffStatsBetweenMessages(messages: Message[], fromMessageId: UUI
     endIndex = messages.length;
   }
   const filesChanged: string[] = [];
+  let fileNamesOnly = false;
   let insertions = 0;
   let deletions = 0;
   for (let i = startIndex + 1; i < endIndex; i++) {
     const msg = messages[i];
     if (!msg || !isToolUseResultMessage(msg)) {
+      continue;
+    }
+    if (process.env.CC_A_NATIVE === '1' && 'gatewayEditedFile' in msg && typeof msg.gatewayEditedFile === 'string') {
+      if (!filesChanged.includes(msg.gatewayEditedFile)) filesChanged.push(msg.gatewayEditedFile);
+      fileNamesOnly = true;
       continue;
     }
     const result = msg.toolUseResult as FileEditOutput | FileWriteToolOutput;
@@ -760,6 +766,7 @@ function computeDiffStatsBetweenMessages(messages: Message[], fromMessageId: UUI
   }
   return {
     filesChanged,
+    fileNamesOnly,
     insertions,
     deletions
   };

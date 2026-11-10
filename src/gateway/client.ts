@@ -8,13 +8,14 @@ import { dirname, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { createInterface } from 'node:readline/promises'
+import { validateInference, type InferenceOptions } from './inference'
 import { parseArgs, stripVTControlCharacters } from 'node:util'
 import { EndTruncatingAccumulator } from '../utils/stringUtils'
 import { execute, inside, mutations, tools } from './tools'
 
 const defaultEndpoint = new URL('wss://8.153.176.226/v1/ws')
 
-const usage = 'claudec config set-server\nclaudec config set-key\nclaudec history [--search TEXT] [--workspace DIR] [--key-file FILE]\nclaudec [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
+const usage = 'claudec config set-server\nclaudec config set-key\nclaudec history [--search TEXT] [--workspace DIR] [--key-file FILE]\nclaudec [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--model MODEL|default] [--effort low|medium|high|xhigh|max|auto] [--permission-mode default|acceptEdits|plan|auto|dontAsk|bypassPermissions] [--allow-dangerously-skip-permissions] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
 const safe = (s: string) => stripVTControlCharacters(s).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, '')
 const ui = (s: string) => process.stderr.write(safe(s))
 type Ask = (s: string, signal: AbortSignal) => Promise<boolean>
@@ -67,10 +68,11 @@ function savedServer() {
 type Frame = Record<string, any>
 
 type NativeDispatch = {
+  inference?: InferenceOptions
   images?: GatewayImage[]
   names: string[]
   signal: AbortSignal
-  call: (name:string,args:Record<string,any>,id:string,signal:AbortSignal)=>Promise<string>
+  call: (name:string,args:Record<string,any>,id:string,signal:AbortSignal,review:(data:string)=>Promise<boolean>)=>Promise<string>
 }
 export class Gateway {
   private turns = new Map<string, { event: (frame: Frame) => void; fail: (why: string) => void }>()
@@ -79,7 +81,7 @@ export class Gateway {
   // Keep local approvals and mutations ordered across both VM slots.
   private local = Promise.resolve()
 
-  constructor(url: URL, key: string, private readonly idleTimeoutMs=145000) {
+  constructor(url: URL, key: string, private readonly idleTimeoutMs=145000, private readonly defaults: InferenceOptions = {}) {
     const tls = url.origin === defaultEndpoint.origin
       ? {ca:[...rootCertificates,readFileSync(resolve(import.meta.dir,'gateway-ca.crt'),'utf8')],rejectUnauthorized:true}
       : undefined
@@ -118,6 +120,8 @@ export class Gateway {
 
   async run(root: string, text: string, enabled: boolean, ask: Ask, native?: NativeDispatch): Promise<string> {
     if (!text.trim() || Buffer.byteLength(text) > 16000) throw Error('Prompt must be 1–16000 bytes')
+    const inference = native?.inference ?? this.defaults
+    validateInference(inference)
     await this.opened
     if (this.socket.readyState !== WebSocket.OPEN) throw Error('Gateway connection closed')
     native?.signal.throwIfAborted()
@@ -126,6 +130,7 @@ export class Gateway {
       const seen = new Set<string>()
       const pending = new Map<string, AbortController>()
       const result = new EndTruncatingAccumulator(2 << 20)
+      const reviews = new Map<string,(allow:boolean)=>void>()
       let started = false
       const drain = (why?: string) => {
         // Drain the cancelled turn until C reports its end, keeping sibling turns live.
@@ -152,8 +157,18 @@ export class Gateway {
       this.turns.set(id, {fail: finish, event: m => {
         timer.refresh()
         if (m.type === 'agent.error') return finish('Gateway: ' + safe(String(m.text)))
-        if (m.type === 'agent.turn.started' && !started) { started = true; return }
+        if (m.type === 'agent.turn.started' && !started) {
+          if ((inference.model && m.model !== inference.model) || (inference.effort && m.effort !== inference.effort)) {
+            return drain('C 端未确认所选模型或 effort，请更新 C 端后重试')
+          }
+          started = true
+          return
+        }
         if (!started) throw Error()
+        if (m.type === 'tool.review.result') {
+          reviews.get(m.call_id)?.(m.status === 'allow')
+          return
+        }
         if (m.type === 'image.request') {
           const {index, offset} = m.arguments ?? {}
           const image = Number.isInteger(index) && native?.images?.[index]
@@ -182,7 +197,22 @@ export class Gateway {
             if (!(native?.names ?? tools).includes(m.tool)) throw Error('Tool unavailable on this client. Available: ' + (native?.names??tools).join(', '))
             if (!m.arguments || typeof m.arguments !== 'object' || Array.isArray(m.arguments)) throw Error('Invalid tool arguments')
             if(native){
-              reply=await native.call(m.tool,m.arguments,m.call_id,ctrl.signal)
+              const review=(text:string):Promise<boolean>=>{
+                if(m.host_review!==true || ctrl.signal.aborted || reviews.has(m.call_id))return Promise.resolve(false)
+                return new Promise(resolve=>{
+                  const finishReview=(allow:boolean)=>{
+                    reviews.delete(m.call_id)
+                    ctrl.signal.removeEventListener('abort',deny)
+                    resolve(allow)
+                  }
+                  const deny=()=>finishReview(false)
+                  reviews.set(m.call_id,finishReview)
+                  ctrl.signal.addEventListener('abort',deny,{once:true})
+                  try { this.socket.send(JSON.stringify({type:'tool.review',id,call_id:m.call_id,text})) }
+                  catch { deny() }
+                })
+              }
+              reply=await native.call(m.tool,m.arguments,m.call_id,ctrl.signal,review)
             } else if ((mutations.has(m.tool) || m.requires_approval === true) && !await ask(m.tool + ' ' + JSON.stringify(m.arguments), ctrl.signal)) {
               status = 'denied'
               reply = 'User approval required'
@@ -210,7 +240,7 @@ export class Gateway {
         if(native)void dispatch().catch(()=>finish('Could not return tool result'))
         else this.local=this.local.then(dispatch).catch(()=>finish('Could not return tool result'))
       }})
-      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
+      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
         shells:enabled ? shellProfiles(root,native?.names??tools) : {}}))
     })
   }
@@ -226,10 +256,15 @@ export async function gatewayMain(args: string[]) {
     return configureKey()
   }
   const {values:v,positionals,tokens}=parseArgs({args,allowPositionals:true,tokens:true,options:{
-    'continue':{type:'boolean',short:'c'},resume:{type:'string',short:'r'},'mcp-config':{type:'string'},native:{type:'boolean'},simple:{type:'boolean'},'key-file':{type:'string'},search:{type:'string'},workspace:{type:'string'},url:{type:'string'},
+    model:{type:'string'},effort:{type:'string'},'permission-mode':{type:'string'},'allow-dangerously-skip-permissions':{type:'boolean'},'continue':{type:'boolean',short:'c'},resume:{type:'string',short:'r'},'mcp-config':{type:'string'},native:{type:'boolean'},simple:{type:'boolean'},'key-file':{type:'string'},search:{type:'string'},workspace:{type:'string'},url:{type:'string'},
     print:{type:'boolean',short:'p'},prompt:{type:'string',multiple:true},'text-only':{type:'boolean'},help:{type:'boolean',short:'h'}
   }})
   if(v.help){console.log(usage);return}
+  const model = v.model === 'default' ? undefined : v.model
+  const effort = v.effort === 'auto' ? undefined : v.effort
+  validateInference({model, effort})
+  const mode=v['permission-mode']
+  if(mode!==undefined && !['default','acceptEdits','plan','auto','dontAsk','bypassPermissions'].includes(mode))throw Error('Unknown permission mode: '+mode)
   const printCount=tokens.filter(t=>t.kind==='option' && t.name==='print').length
   if(positionals.length>Math.max(1,printCount) || (v.prompt?.length && positionals.length))throw Error(usage)
   let initialPrompt:string|undefined
@@ -251,6 +286,7 @@ export async function gatewayMain(args: string[]) {
     }
   }else initialPrompt=positionals[0]
   if(initialPrompt&&v.simple)throw Error('Positional prompts require the native CLI')
+  if((mode || v['allow-dangerously-skip-permissions']) && (v.simple || (v.prompt?.length??0)>1))throw Error('Permission modes require a native claudec session')
   executorOS()
   if(process.platform==='win32' && (v.simple || (v.prompt?.length??0)>1))throw Error('Use the native CLI on Windows, with one prompt per process')
   const base=process.env.CC_A_START_DIR||process.cwd()
@@ -283,7 +319,7 @@ export async function gatewayMain(args: string[]) {
   if (v.continue && v.resume) throw Error('Choose --continue or --resume')
   if (v.native || (!v.simple && (v.prompt?.length ?? 0) <= 1)){
     if(v.prompt && v.prompt.length!==1) throw Error('Native print mode accepts one prompt')
-    const gateway=new Gateway(url,key)
+    const gateway=new Gateway(url,key,undefined,{model,effort})
     await gateway.ready()
     let cleanup: (()=>void) | undefined
     try{
@@ -307,11 +343,13 @@ export async function gatewayMain(args: string[]) {
       delete process.env.CLAUDE_CODE_OAUTH_TOKEN
       const {setNativeGateway}=await import('./native')
       const {closeSessionTools}=await import('./sessionTools')
+      const {startWorkspaceSession} = await import('./workspace')
+      startWorkspaceSession(root, [realpathSync(keyPath), defaultKeyPath(), dirname(state)])
       setNativeGateway({client:gateway,root,textOnly:!!v['text-only']})
       cleanup=()=>{closeSessionTools();setNativeGateway(undefined)}
       const {embeddedCatalog}=await import('./registry')
       const names=embeddedCatalog.map(d=>d.name==='Task'?'Agent':d.name).join(',')
-      process.argv=[process.argv[0]!,process.argv[1]!,...(process.env.CC_A_DEBUG_FILE?['--debug-file',process.env.CC_A_DEBUG_FILE]:[]),'--setting-sources','','--strict-mcp-config',...(v['mcp-config']?['--mcp-config',realpathSync(resolve(base,v['mcp-config']))]:[]),'--tools',v['text-only']?'':names,...(v.continue?['--continue']:v.resume?['--resume',v.resume]:[]),...(v.prompt?['-p',v.prompt[0]!]:initialPrompt?['--',initialPrompt]:[])]
+      process.argv=[process.argv[0]!,process.argv[1]!,...(process.env.CC_A_DEBUG_FILE?['--debug-file',process.env.CC_A_DEBUG_FILE]:[]),...(model?['--model',model]:[]),...(effort?['--effort',effort]:[]),...(mode?['--permission-mode',mode]:[]),...(v['allow-dangerously-skip-permissions']?['--allow-dangerously-skip-permissions']:[]),'--setting-sources','','--strict-mcp-config',...(v['mcp-config']?['--mcp-config',realpathSync(resolve(base,v['mcp-config']))]:[]),'--tools',v['text-only']?'':names,...(v.continue?['--continue']:v.resume?['--resume',v.resume]:[]),...(v.prompt?['-p',v.prompt[0]!]:initialPrompt?['--',initialPrompt]:[])]
       await (await import('../main')).main()
     }finally{
       gateway.close()
@@ -321,7 +359,7 @@ export async function gatewayMain(args: string[]) {
   }
   const rl=interactive?createInterface({input:process.stdin,output:process.stderr}):undefined
   const ask:Ask=async(s,signal)=>!!rl&&(await rl.question('允许在本机执行 '+safe(s)+'？[y/N] ',{signal})).trim().toLowerCase()==='y'
-  const gateway = new Gateway(url,key)
+  const gateway = new Gateway(url,key,undefined,{model,effort})
   try{
     await gateway.ready()
     if(v.prompt){
