@@ -25,6 +25,7 @@ test('gateway permission modes enforce local decisions and route eligible Auto a
       }else if(m.type==='tool.review'){
         reviewed++
         expect(JSON.parse(m.text).tool).toBe(shellCommand?'Bash':'Write')
+        if (shellCommand) expect(JSON.parse(m.text).args.command).toBe(shellCommand)
         emit({type:'tool.review.result',call_id:m.call_id,status:review.toLowerCase()})
       }else if(m.type==='tool.result'){end(m.status+' '+m.text)}
     }}
@@ -43,8 +44,10 @@ test('gateway permission modes enforce local decisions and route eligible Auto a
       expect(reviewed,mode).toBe(mode==='auto'?1:0)
     }
     if (process.platform !== 'win32') {
-      for (const [command, verdict, reviews, created] of [
-        ['touch approved','ALLOW',1,true], ['touch declined','DENY',1,false],
+      const loop = 'ls; for b in role/A_control role/B_perception role/C_learning role/D_prediction role/E_data_pipeline role/F_training_infrastructure profile/main profile/cosmos3 profile/dreamzero profile/fast_wam profile/vjepa2_ac; do echo "=== $b"; git log -1 --format=\'%ad %s\' --date=short origin/$b 2>/dev/null; git ls-tree --name-only origin/$b | head -15 | tr \'\\n\' \' \'; echo; done 2>&1 | grep -v xcrun'
+      for (const [command, verdict, marker, created] of [
+        ['touch approved','ALLOW','approved',true], ['touch declined','DENY','declined',false],
+        ['pwd','DENY','',false], [loop,'ALLOW','',false],
       ] as const) {
         reviewed=0; shellCommand=command; review=verdict
         await using proc=Bun.spawn([...cli,'--key-file',join(dir,'key'),'--workspace',root,
@@ -52,8 +55,10 @@ test('gateway permission modes enforce local decisions and route eligible Auto a
           {cwd:repo,stdin:'ignore',stdout:'pipe',stderr:'pipe'})
         const [code,out,err]=await Promise.all([proc.exited,new Response(proc.stdout).text(),new Response(proc.stderr).text()])
         expect(code,out+err).toBe(0)
-        expect(reviewed,command+' '+out).toBe(reviews)
-        expect(existsSync(join(root,command.split(' ')[1]!)),command+' '+out).toBe(created)
+        expect(reviewed,command+' '+out).toBe(1)
+        if (marker) expect(existsSync(join(root,marker)),command+' '+out).toBe(created)
+        if (command === loop) expect(out).toContain('=== role/A_control')
+        if (command === 'pwd') expect(out).toContain('Auto review declined or unavailable')
       }
     }
   }finally{await server.stop(true);rmSync(dir,{recursive:true,force:true})}
@@ -94,7 +99,7 @@ test('Auto keeps explicit session rules local, including rules on a pipeline seg
   ] as const) {
     const result = await getLocalToolPermissionDecision(BashTool, {command}, context, {forGatewayReview:true})
     expect(result.behavior, command).toBe(behavior)
-    expect(hostReviewable(result), command).toBe(false)
+    expect(hostReviewable(result, true), command).toBe(false)
   }
 })
 

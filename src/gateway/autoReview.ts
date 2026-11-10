@@ -1,15 +1,16 @@
 import type { PermissionResult } from '../types/permissions'
 
 // A compound shell decision can wrap explicit ask/deny rules on individual segments.
-export function hostReviewable(result: PermissionResult): boolean {
+export function hostReviewable(result: PermissionResult, modelHandlesShellSyntax = false): boolean {
   if (result.behavior === 'deny') return false
   if ('blockedPath' in result && result.blockedPath) return false
   const reason = result.decisionReason
   if (reason?.type === 'subcommandResults') {
-    return reason.reasons.size > 0 && [...reason.reasons.values()].every(hostReviewable)
+    return reason.reasons.size > 0 && [...reason.reasons.values()].every(part => hostReviewable(part, modelHandlesShellSyntax))
   }
   if (result.behavior === 'allow') return true
   if (reason && reason.type !== 'other') return false
+  if (modelHandlesShellSyntax && reason?.type === 'other') return true
   return result.behavior === 'passthrough' || result.fromPassthrough === true
 }
 
