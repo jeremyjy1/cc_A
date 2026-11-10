@@ -23,7 +23,7 @@ A 只提交本端凭证。绑定、轮换、撤销由 B 管理员通过服务器
 ## 会话和执行位置
 
 - 交互和单个 `-p` 均使用原版 CLI。可把首条问题作为位置参数传入，也可使用 `--print` 从标准输入读取文本。`-c` 和 `-r` 分别对应 `--continue` 和 `--resume`。工作区信任、操作预览和审批出现在运行 A 的本地终端。需要本地审批的工具在单次打印模式下会返回错误。
-- 同一工作区和密钥下，`--continue` 恢复最近会话，`--resume SESSION` 恢复指定会话，交互中也可使用 `/resume`。macOS 和 Linux 将记录保存在密钥目录下的 .cc-a-state 私有子目录，Windows 使用当前用户的 LocalAppData。换密钥后使用独立的记录。A 每轮发送当前问题和能够放入 16,000 字节网关请求的最近文本历史。图片、PDF 和二进制附件尚不能通过此协议发送。
+- 同一工作区和密钥下，`--continue` 恢复最近会话，`--resume SESSION` 恢复指定会话，交互中也可使用 `/resume`。macOS 和 Linux 将记录保存在密钥目录下的 .cc-a-state 私有子目录，Windows 使用当前用户的 LocalAppData。换密钥后使用独立的记录。A 每轮发送当前问题和能够放入 16,000 字节网关请求的最近文本历史。在交互终端中，将 PNG、JPEG、GIF 或 WebP 图片拖入输入框，看到图片标记后输入问题并回车。每轮最多 4 张，每张 4 MiB，合计 8 MiB。后续追问自动携带当前会话中最近一次附上的整组图片；附上新图会替换该组。新会话或上下文压缩后，需要重新附图。PDF 和其他二进制附件暂不支持。
 - 当前 Mac 和 Linux 验收配置各可注册 35 个工作区工具，覆盖文件与 Bash、任务和子代理、计划、工作树、定时任务、工作流、LSP 和 MCP 资源。每轮仅注册当前会话可用的工具。PowerShell 未在这台 Mac 上启用。WebFetch 和 WebSearch 在 C 使用 Claude Code 原生实现。Notebook 和云端专属工具已排除。
 - Read/Write/Edit 面向工作区内的 UTF-8 文件。macOS 和 Linux 的 Bash 在各自的工作区隔离环境执行，单次上限 55 秒。Monitor 支持工作区命令或回环 WebSocket。Workflow 使用独立 JavaScript 运行时，其模型调用经同一固定池。工作流和唤醒计时器随客户端进程结束。内置语言服务器支持 JavaScript 和 TypeScript。外部 MCP 资源可通过 `--mcp-config FILE` 显式接入。
 - `--text-only` 禁用工具。macOS 和 Linux 的 `--simple` 启动兼容客户端，只提供六个文件、搜索和 Bash 工具。一次传入两个 `-p` 使用兼容模式并行执行独立请求。

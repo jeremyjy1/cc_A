@@ -1,3 +1,4 @@
+import type { GatewayImage } from './transcript'
 import {rootCertificates} from 'node:tls'
 import {configureKey,configureServer,defaultKeyPath,parseServer,serverPath} from './configure'
 import { executorOS, shellProfiles } from './platform'
@@ -66,6 +67,7 @@ function savedServer() {
 type Frame = Record<string, any>
 
 type NativeDispatch = {
+  images?: GatewayImage[]
   names: string[]
   signal: AbortSignal
   call: (name:string,args:Record<string,any>,id:string,signal:AbortSignal)=>Promise<string>
@@ -152,6 +154,14 @@ export class Gateway {
         if (m.type === 'agent.error') return finish('Gateway: ' + safe(String(m.text)))
         if (m.type === 'agent.turn.started' && !started) { started = true; return }
         if (!started) throw Error()
+        if (m.type === 'image.request') {
+          const {index, offset} = m.arguments ?? {}
+          const image = Number.isInteger(index) && native?.images?.[index]
+          if (!image || !Number.isInteger(offset) || offset < 0 || offset >= image.data.length ||
+              offset % 49152 !== 0 || !/^[a-f0-9]{32}$/.test(m.call_id)) throw Error()
+          this.socket.send(JSON.stringify({type:'image.chunk',id,call_id:m.call_id,status:'ok',text:image.data.slice(offset,offset+49152)}))
+          return
+        }
         if (m.type === 'agent.text.delta' && typeof m.text === 'string') {
           result.append(m.text)
           if (result.truncated) throw Error()
@@ -200,7 +210,7 @@ export class Gateway {
         if(native)void dispatch().catch(()=>finish('Could not return tool result'))
         else this.local=this.local.then(dispatch).catch(()=>finish('Could not return tool result'))
       }})
-      this.socket.send(JSON.stringify({type:'user.message', id, text, tools:enabled, tool_names:native?.names??tools,
+      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
         shells:enabled ? shellProfiles(root,native?.names??tools) : {}}))
     })
   }

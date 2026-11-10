@@ -11,7 +11,7 @@ import { Stream } from '../utils/stream'
 import { getCwd } from '../utils/cwd'
 import { checkWorkspaceTarget, execute, fileTools, tools as guardedTools, mutations } from './tools'
 import type { Gateway } from './client'
-import { conversationPrompt } from './transcript'
+import { conversationPrompt, conversationImages } from './transcript'
 import { embeddedCatalog } from './registry'
 
 type Connection = { client: Gateway; root: string; textOnly: boolean }
@@ -40,8 +40,8 @@ export async function* nativeQuery(params: QueryParams) {
     const plan = mode==='plan' ? 'Session plan file: '+getPlanFilePath(context.agentId)+'\n' : ''
     const workspace = role+plan+"Permission mode: "+mode+"\nWorkspace OS: "+executorOS()+". Use workspace-relative file paths. Workspace cwd: "+JSON.stringify(root)+"\n\n"
     const input = workspace+conversationPrompt(params.messages,16000-Buffer.byteLength(workspace))
-    const run = (prompt:string) => client.run(root, prompt, !textOnly, async()=>false, {
-      names: available.map(d=>d.name),
+    const run = (prompt:string, images:ReturnType<typeof conversationImages>) => client.run(root, prompt, !textOnly, async()=>false, {
+      images, names: available.map(d=>d.name),
       signal: controller.signal,
       call: async (name,args,id,signal) => {
         const workspaceRoot = getCwd()
@@ -126,7 +126,7 @@ export async function* nativeQuery(params: QueryParams) {
       let prompt=input
       const history=[...params.messages]
       for(;;){
-        const answer=await run(prompt)
+        const answer=await run(prompt,conversationImages(history))
         if(!context.agentId)return answer
         const pending=drainPendingMessages(context.agentId,context.getAppState,context.setAppStateForTasks??context.setAppState)
         if(!pending.length)return answer

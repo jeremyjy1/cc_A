@@ -34,3 +34,19 @@ test('workspace workflow source keeps exact UTF-8 text and rejects linked or inv
     await expect(readWorkflow(root,'../outside.js')).rejects.toThrow()
   }finally{rmSync(root,{recursive:true,force:true})}
 })
+
+test('follow-ups reuse the latest image group within the conversation', async () => {
+  const {conversationImages} = await import('./transcript')
+  const data = Buffer.from('sample bytes').toString('base64')
+  const row = {type:'user',message:{content:[{type:'image',source:{type:'base64',media_type:'image/png',data}}]}}
+  expect(conversationImages([row])).toEqual([{media_type:'image/png',data,size:12}])
+  expect(conversationPrompt([row])).toBe('[Image]')
+  const next = {type:'user',message:{content:'follow-up'}}
+  expect(conversationImages([row,next])).toEqual(conversationImages([row]))
+  expect(conversationImages([next])).toEqual([])
+  expect(conversationImages([row,{type:'system',subtype:'compact_boundary'},next])).toEqual([])
+  const newer = {...row,message:{content:[{type:'image',source:{...row.message.content[0]!.source,data:'bmV3'}}]}}
+  expect(conversationImages([row,newer,next])).toEqual(conversationImages([newer]))
+  expect(conversationPrompt([row,next])).not.toContain(data)
+  expect(()=>conversationImages([{...row,message:{content:Array(5).fill(row.message.content[0])}}])).toThrow()
+})
