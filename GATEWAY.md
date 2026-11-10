@@ -4,21 +4,19 @@
 
 ## 启动
 
-在一个终端保持到 B 的隧道打开。
+首次使用或更换密钥时，运行 `cc-a config set-key`，按提示粘贴 B 管理员签发的 A 密钥并回车。输入会隐藏。然后进入工作目录运行 `cc-a`。
+
+A 启动时使用本端网关密钥自动连接 B 的 WSS 入口，并验证 B 的公网 IP 和证书链。
+
+已安装 `cc-a` 启动命令的 Mac 用户可进入项目后输入 `cc-a`，默认使用当前目录，由 B 根据接入密钥选择固定池。直接从源码启动时，在本仓库目录运行以下任一命令，把路径换为要操作的项目。
 
 ~~~sh
-ssh -NT -o ExitOnForwardFailure=yes -i /path/to/ssh-key -L 127.0.0.1:18765:127.0.0.1:18765 gateway-user@gateway-host
+./cc-a --workspace /absolute/path/to/project
+./cc-a --workspace /absolute/path/to/project -p '读取 README.md 并概述'
+./cc-a --workspace /absolute/path/to/project --continue
 ~~~
 
-在本仓库目录运行以下任一命令，把路径换为要操作的项目。
-
-~~~sh
-./cc-a --pool server04 --workspace /absolute/path/to/project
-./cc-a --pool server05 --workspace /absolute/path/to/project -p '读取 README.md 并概述'
-./cc-a --pool server05 --workspace /absolute/path/to/project --continue
-~~~
-
-默认池为 server05。池别名从仓库旁的 fixed-pool-keys 目录读取对应的密钥文件。也可使用 `--key-file FILE`，文件需要归当前用户所有并限制为仅本人可读。工作区和凭证分开存放。自有网关地址通过 `--url` 设置，支持 WSS 或回环 SSH 隧道。
+A 只提交本端凭证。绑定、轮换、撤销由 B 管理员通过服务器本地管理接口执行。默认密钥文件为 macOS/Linux 的 `~/.config/cc-a/access.key` 或 Windows 的 `%LOCALAPPDATA%\cc-a\access.key`。也可使用 `--key-file FILE`，文件需要归当前用户所有并限制为仅本人可读。工作区和凭证分开存放。自有网关地址通过 `--url` 设置，支持 WSS 或用于本地测试的回环 WS。
 
 ## 会话和执行位置
 
@@ -34,10 +32,10 @@ ssh -NT -o ExitOnForwardFailure=yes -i /path/to/ssh-key -L 127.0.0.1:18765:127.0
 
 macOS、Linux 和 WSL 使用 `./cc-a`。Linux 的 Bash 执行器使用 bubblewrap，启动时实际创建隔离环境来检测权限。容器限制用户命名空间时，Bash 不会注册，其余工具仍可使用。
 
-Windows 原生入口为 `cc-a.cmd`。Glob 和 Grep 默认使用 PATH 中的 `rg.exe`，Git Bash 使用 Git for Windows。使用 `--key-file` 指定当前 Windows 用户拥有的 NTFS 密钥文件，访问权限应限于本人、SYSTEM 和本机 Administrators。会话记录存储于当前用户的 LocalAppData。Windows 模式使用本机可用的 PowerShell 和 Windows 工作目录。已在这台 Mac 的 Docker Windows 11 ARM64 来宾中验证客户端启动、认证、原版终端审批和真实固定池编程任务。Windows 用户可在已建立本机隧道的情况下从客户端目录启动交互会话。
+Windows 原生入口为 `cc-a.cmd`。Glob 和 Grep 默认使用 PATH 中的 `rg.exe`，Git Bash 使用 Git for Windows。使用 `--key-file` 指定当前 Windows 用户拥有的 NTFS 密钥文件，访问权限应限于本人、SYSTEM 和本机 Administrators。会话记录存储于当前用户的 LocalAppData。Windows 模式使用本机可用的 PowerShell 和 Windows 工作目录。已在这台 Mac 的 Docker Windows 11 ARM64 来宾中验证客户端启动、认证、原版终端审批和真实固定池编程任务。Windows 用户可从客户端目录启动交互会话。
 
 ~~~powershell
-.\cc-a.cmd --key-file "C:\Keys\server05.key" --workspace "C:\Projects\demo"
+.\cc-a.cmd --key-file "C:\Keys\access.key" --workspace "C:\Projects\demo"
 ~~~
 
 在 macOS 和 Linux 的客户端目录运行 `bun test src/gateway`。Windows 使用 `bun test src/gateway/client.test.ts src/gateway/native.test.ts src/gateway/readTools.test.ts`。其中只读工具测试启动真实 CLI、本地 MCP 测试服务和 TypeScript 语言服务器，检查网关收到的工具结果。跨平台验收应分别记录安装、工具注册、实际调用和编程任务测试结果。

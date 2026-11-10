@@ -1,3 +1,5 @@
+import {rootCertificates} from 'node:tls'
+import {configureKey,defaultKeyPath} from './configure'
 import { executorOS, shellProfiles } from './platform'
 import { constants, closeSync, fstatSync, openSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -9,7 +11,9 @@ import { parseArgs, stripVTControlCharacters } from 'node:util'
 import { EndTruncatingAccumulator } from '../utils/stringUtils'
 import { execute, inside, mutations, tools } from './tools'
 
-const usage = 'cc-a [--pool server04|server05 | --key-file FILE] --workspace DIR [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
+const defaultEndpoint = new URL('wss://8.153.176.226/v1/ws')
+
+const usage = 'cc-a config set-key\ncc-a [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
 const safe = (s: string) => stripVTControlCharacters(s).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, '')
 const ui = (s: string) => process.stderr.write(safe(s))
 type Ask = (s: string, signal: AbortSignal) => Promise<boolean>
@@ -64,13 +68,16 @@ export class Gateway {
   private local = Promise.resolve()
 
   constructor(url: URL, key: string, private readonly idleTimeoutMs=145000) {
-    this.socket = new WebSocket(url.href, { headers: { Authorization: 'Bearer ' + key } })
+    const tls = url.origin === defaultEndpoint.origin
+      ? {ca:[...rootCertificates,readFileSync(resolve(import.meta.dir,'gateway-ca.crt'),'utf8')],rejectUnauthorized:true}
+      : undefined
+    this.socket = new WebSocket(url.href, { headers: { Authorization: 'Bearer ' + key }, tls })
     this.opened = new Promise((ok, fail) => {
       const timer = setTimeout(() => { fail(Error('Gateway connection timed out')); this.close() }, 12000)
       this.socket.onopen = () => { clearTimeout(timer); ok() }
       this.socket.onerror = () => {
         clearTimeout(timer)
-        fail(Error('Gateway connection failed. Check the tunnel, A key and pool connection.'))
+        fail(Error('Gateway connection failed. Check the gateway address, TLS certificate, A key and pool connection.'))
         this.close()
       }
       this.socket.onclose = event => {
@@ -190,8 +197,12 @@ export class Gateway {
 }
 
 export async function gatewayMain(args: string[]) {
+  if(args[0]==='config' && args[1]==='set-key'){
+    if(args.length!==2)throw Error('用法：cc-a config set-key（通过提示或标准输入提供密钥）')
+    return configureKey()
+  }
   const {values:v,positionals,tokens}=parseArgs({args,allowPositionals:true,tokens:true,options:{
-    'continue':{type:'boolean',short:'c'},resume:{type:'string',short:'r'},'mcp-config':{type:'string'},native:{type:'boolean'},simple:{type:'boolean'},pool:{type:'string'},'key-file':{type:'string'},workspace:{type:'string'},url:{type:'string'},
+    'continue':{type:'boolean',short:'c'},resume:{type:'string',short:'r'},'mcp-config':{type:'string'},native:{type:'boolean'},simple:{type:'boolean'},'key-file':{type:'string'},workspace:{type:'string'},url:{type:'string'},
     print:{type:'boolean',short:'p'},prompt:{type:'string',multiple:true},'text-only':{type:'boolean'},help:{type:'boolean',short:'h'}
   }})
   if(v.help){console.log(usage);return}
@@ -218,15 +229,13 @@ export async function gatewayMain(args: string[]) {
   if(initialPrompt&&v.simple)throw Error('Positional prompts require the native CLI')
   executorOS()
   if(process.platform==='win32' && (v.simple || (v.prompt?.length??0)>1))throw Error('Use the native CLI on Windows, with one prompt per process')
-  if(v.pool && !['server04','server05'].includes(v.pool))throw Error('Unknown fixed pool')
-  if(v.pool&&v['key-file'])throw Error('Choose --pool or --key-file')
   const base=process.env.CC_A_START_DIR||process.cwd()
-  const keyPath=resolve(base,v['key-file']||(!v.pool && process.env.CC_A_KEY_FILE)||resolve(import.meta.dir,'../../../fixed-pool-keys',(v.pool||'server05')+'.key'))
+  const keyPath=resolve(base,v['key-file']||process.env.CC_A_KEY_FILE||defaultKeyPath())
   const root=realpathSync(resolve(base,v.workspace||'.'))
   if(!statSync(root).isDirectory())throw Error('Invalid workspace directory')
   if(!v['text-only']&&(inside(root,realpathSync(keyPath))||inside(root,homedir())))throw Error('Choose a project workspace separate from the gateway credentials')
-  const url=new URL(v.url||process.env.CC_GATEWAY_URL||'ws://127.0.0.1:18765/v1/ws')
-  if(url.username||url.password||url.search||url.hash||!(url.protocol==='wss:'||url.protocol==='ws:'&&['127.0.0.1','[::1]'].includes(url.hostname)))throw Error('Use WSS or a loopback SSH tunnel')
+  const url=new URL(v.url||process.env.CC_GATEWAY_URL||defaultEndpoint.href)
+  if(url.username||url.password||url.search||url.hash||!(url.protocol==='wss:'||url.protocol==='ws:'&&['127.0.0.1','[::1]'].includes(url.hostname)))throw Error('Use WSS for a remote gateway or WS on loopback')
   const key=loadKey(keyPath)
   const terminal=v.simple ? process.stderr : process.stdout
   const interactive=Boolean(process.stdin.isTTY && terminal.isTTY)
