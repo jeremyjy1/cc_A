@@ -83,7 +83,7 @@ export class Gateway {
   // Keep local approvals and mutations ordered across both VM slots.
   private local = Promise.resolve()
 
-  constructor(url: URL, key: string, private readonly idleTimeoutMs=145000, private readonly defaults: InferenceOptions = {}) {
+  constructor(url: URL, key: string, private readonly idleTimeoutMs=10 * 60_000, private readonly defaults: InferenceOptions = {}) {
     const tls = url.origin === defaultEndpoint.origin
       ? {ca:[...rootCertificates,readFileSync(resolve(import.meta.dir,'gateway-ca.crt'),'utf8')],rejectUnauthorized:true}
       : undefined
@@ -157,7 +157,10 @@ export class Gateway {
         native?.signal.removeEventListener('abort',abort)
         clearTimeout(timer)
         for (const ctrl of pending.values()) ctrl.abort()
-        if (why) fail(Error(why)); else ok(result.toString())
+        const text = result.toString()
+        if (why) fail(Error(text.trim() ? why + '\n\n中断前收到的部分回复：\n' + text : why))
+        else if (!text.trim()) fail(Error('C 端已结束本轮，但没有返回文本。'))
+        else ok(text)
       }
       // Tool approvals and streamed output are progress within the same turn.
       // Cancel only the idle turn so an active subagent can finish on this connection.
@@ -165,7 +168,11 @@ export class Gateway {
       native?.signal.addEventListener('abort',abort,{once:true})
       this.turns.set(id, {fail: finish, event: m => {
         timer.refresh()
-        if (m.type === 'agent.error') return finish('Gateway: ' + safe(String(m.text)))
+        if (m.type === 'agent.error') {
+          if (m.text === 'turn_timed_out') return finish('C 端推理达到本轮时间上限（turn_timed_out）')
+          if (m.text === 'inference_failed') return finish('C 端推理失败，未取得最终回复（inference_failed）')
+          return finish('Gateway: ' + safe(String(m.text)))
+        }
         if (m.type === 'agent.turn.started' && !started) {
           if ((inference.model && m.model !== inference.model) || (inference.effort && m.effort !== inference.effort)) {
             return drain('C 端未确认所选模型或 effort，请更新 C 端后重试')

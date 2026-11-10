@@ -159,3 +159,36 @@ test('an idle turn cancels independently while a streaming sibling continues',as
     expect(idleId).not.toBe('')
   }finally{gateway.close();await server.stop(true)}
 })
+
+test('a resumed failed turn shows partial output and an empty completion reports failure', async () => {
+  const dir = mkdtempSync(join(tmpdir(),'cc-a-interrupted-'))
+  const root = join(dir,'project')
+  mkdirSync(root)
+  writeTestKey(join(dir,'key'),'gw1_'+'v'.repeat(43))
+  const server = Bun.serve({hostname:'127.0.0.1',port:0,
+    fetch(req,s){if(!s.upgrade(req))return new Response('',{status:400})},
+    websocket:{message(ws,raw){
+      const m=JSON.parse(String(raw))
+      if(m.type!=='user.message')return
+      const send=(type:string,text?:string)=>ws.send(JSON.stringify({id:m.id,type,text}))
+      send('agent.turn.started')
+      if(m.text.endsWith('second-turn')) {
+        send('agent.text.delta','partial-432');send('agent.error','turn_timed_out')
+      } else {
+        if(!m.text.endsWith('empty-turn'))send('agent.text.delta','first-response')
+        send('agent.turn.completed')
+      }
+    }},
+  })
+  try {
+    for(const [prompt,expected] of [['first-turn','first-response'],['second-turn','turn_timed_out'],['empty-turn','没有返回文本']]){
+      await using p=Bun.spawn([...cli,'--workspace',root,'--key-file',join(dir,'key'),
+        '--url','ws://127.0.0.1:'+server.port+'/v1/ws',...(prompt==='first-turn'?[]:['--continue']),'-p',prompt],
+        {env:{...process.env,TEST_ENABLE_SESSION_PERSISTENCE:'1'},cwd:repo,stdin:'ignore',stdout:'pipe',stderr:'pipe'})
+      const [code,out,err]=await Promise.all([p.exited,new Response(p.stdout).text(),new Response(p.stderr).text()])
+      expect(out+err).toContain(expected)
+      if(prompt==='second-turn')expect(out+err).toContain('partial-432')
+      expect(code===0).toBe(prompt==='first-turn')
+    }
+  } finally {await server.stop(true);rmSync(dir,{recursive:true,force:true})}
+},60000)

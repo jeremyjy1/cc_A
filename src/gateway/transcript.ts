@@ -1,4 +1,4 @@
-type Row = {type:string; subtype?:string; isMeta?:boolean; message?:{content:unknown}}
+type Row = {type:string; subtype?:string; isMeta?:boolean; isApiErrorMessage?:boolean; message?:{content:unknown}}
 type Text = {role:string; text:string}
 
 export type GatewayImage = {media_type:string; data:string; size:number}
@@ -32,7 +32,7 @@ export function conversationPrompt(messages: readonly Row[], maxBytes=16000): st
   const turns: Text[]=[]
   const current = messages.findLast(m=>m.type==="user"&&!m.isMeta)
   for(const m of messages){
-    if(m.isMeta || (m.type!=='user' && m.type!=='assistant'))continue
+    if(m.isMeta || m.isApiErrorMessage || (m.type!=='user' && m.type!=='assistant'))continue
     const c=m.message?.content
     if (m===current && Array.isArray(c) && c.some(b=>b?.type==='document')) {
       throw Error('This gateway does not accept document attachments.')

@@ -8,7 +8,7 @@ import { executorOS, shellProfiles } from './platform'
 import { findToolByName } from '../Tool'
 import type { QueryParams } from '../query'
 import { runTools } from '../services/tools/toolOrchestration'
-import { createAssistantMessage, createUserMessage } from '../utils/messages'
+import { createAssistantAPIErrorMessage, createAssistantMessage, createUserMessage } from '../utils/messages'
 import { hasPermissionsToUseTool } from '../utils/permissions/permissions'
 import { Stream } from '../utils/stream'
 import { getCwd } from '../utils/cwd'
@@ -196,9 +196,14 @@ export async function* nativeQuery(params: QueryParams) {
     }
     void runConversation().then(answer=>{events.enqueue(createAssistantMessage({content:answer}));events.done()},e=>events.error(e))
     for await(const msg of events)yield msg
-    return {reason:'completed' as const}
+  } catch (error) {
+    if (!parent.aborted) {
+      const reason = error instanceof Error ? error.message : 'Gateway request failed'
+      yield createAssistantAPIErrorMessage({content:'本轮未完成：' + reason})
+    }
   } finally {
     controller.abort()
     parent.removeEventListener('abort',abort)
   }
+  return {reason:'completed' as const}
 }
