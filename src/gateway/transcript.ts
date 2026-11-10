@@ -1,4 +1,4 @@
-type Row = {type:string; subtype?:string; isMeta?:boolean; isApiErrorMessage?:boolean; message?:{content:unknown}}
+type Row = {type:string; subtype?:string; isMeta?:boolean; isApiErrorMessage?:boolean; gatewayCheckpoint?:string; message?:{content:unknown}}
 type Text = {role:string; text:string}
 
 export type GatewayImage = {media_type:string; data:string; size:number}
@@ -58,4 +58,13 @@ export function conversationPrompt(messages: readonly Row[], maxBytes=16000): st
     output=next
   }
   return output
+}
+
+// Rewinding or branching selects the checkpoint still present in this history.
+// Auxiliary turns never receive or advance the main conversation checkpoint.
+export function remoteContinuation(messages: readonly Row[]) {
+  const boundary = messages.findLastIndex(m => m.type === 'system' && m.subtype === 'compact_boundary')
+  const recent = messages.slice(boundary + 1)
+  const index = recent.findLastIndex(m => m.type === 'assistant' && typeof m.gatewayCheckpoint === 'string' && /^[A-Za-z0-9]{26}$/.test(m.gatewayCheckpoint))
+  return {parent: recent[index]?.gatewayCheckpoint, messages: recent.slice(index + 1)}
 }

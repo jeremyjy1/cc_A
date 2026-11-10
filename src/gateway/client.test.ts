@@ -192,3 +192,38 @@ test('a resumed failed turn shows partial output and an empty completion reports
     }
   } finally {await server.stop(true);rmSync(dir,{recursive:true,force:true})}
 },60000)
+
+test('resuming a saved A transcript sends only the follow-up with the C checkpoint', async()=>{
+  const base=mkdtempSync(join(tmpdir(),'cc-native-resume-'))
+  const root=join(base,'project')
+  mkdirSync(root)
+  writeTestKey(join(base,'key'),'gw1_'+'x'.repeat(43))
+  const turns: {text:string;resume_from?:string}[]=[]
+  const server=Bun.serve({hostname:'127.0.0.1',port:0,
+    fetch(req,s){if(!s.upgrade(req))return new Response('',{status:400})},
+    websocket:{message(ws,raw){
+      const m=JSON.parse(String(raw))
+      if(m.type!=='user.message')return
+      const send=(frame:object)=>ws.send(JSON.stringify({id:m.id,...frame}))
+      send({type:'agent.turn.started',persistence:'true'})
+      if(m.save_session)turns.push(m)
+      send({type:'agent.text.delta',text:'remember-my-first-reply'})
+      send({type:'agent.turn.completed',checkpoint:'C'.repeat(26)})
+    }},
+  })
+  try {
+    const args=[...cli,'--workspace',root,'--key-file',join(base,'key'),'--url','ws://127.0.0.1:'+server.port+'/v1/ws']
+    for(const rest of [['-p','first-seed'],['--continue','-p','second-question'],['-p','separate-chat']]){
+      await using p=Bun.spawn([...args,...rest],{cwd:repo,env:{...process.env,TEST_ENABLE_SESSION_PERSISTENCE:'1'},stdout:'pipe',stderr:'pipe',stdin:'ignore'})
+      const [code,out,err]=await Promise.all([p.exited,new Response(p.stdout).text(),new Response(p.stderr).text()])
+      expect(code,out+err).toBe(0)
+    }
+    expect(turns).toHaveLength(3)
+    expect(turns[0]!.resume_from).toBeUndefined()
+    expect(turns[1]!.resume_from).toBe('C'.repeat(26))
+    expect(turns[1]!.text).toContain('second-question')
+    expect(turns[1]!.text).not.toContain('first-seed')
+    expect(turns[1]!.text).not.toContain('remember-my-first-reply')
+    expect(turns[2]!.resume_from).toBeUndefined()
+  } finally {await server.stop(true);rmSync(base,{recursive:true,force:true})}
+},60000)

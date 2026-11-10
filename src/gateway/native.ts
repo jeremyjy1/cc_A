@@ -15,7 +15,7 @@ import { getCwd } from '../utils/cwd'
 import { checkWorkspaceTarget, execute, fileTools, tools as guardedTools, mutations } from './tools'
 import { sessionInference, type InferenceOptions } from './inference'
 import type { Gateway } from './client'
-import { conversationPrompt, conversationImages } from './transcript'
+import { conversationPrompt, conversationImages, remoteContinuation } from './transcript'
 import { autoReviewPrompt } from './autoReview'
 import { embeddedCatalog } from './registry'
 
@@ -51,8 +51,11 @@ export async function* nativeQuery(params: QueryParams) {
     const directories = roots.length ? 'Additional workspace directories: '+JSON.stringify(roots)+'\n' : ''
     const guidance = existsSync(resolve(root,'CLAUDE.md')) && !textOnly ? 'Read the project CLAUDE.md with Read for repository instructions.\n' : ''
     const workspace = role+plan+directories+guidance+"Permission mode: "+mode+"\nWorkspace OS: "+executorOS()+". Use workspace-relative file paths. Workspace cwd: "+JSON.stringify(root)+"\n\n"
-    const input = workspace+conversationPrompt(params.messages,16000-Buffer.byteLength(workspace))
+    const continuation = context.agentId ? {messages:params.messages, parent:undefined} : remoteContinuation(params.messages)
+    let checkpoint: string | undefined
+    const input = workspace+conversationPrompt(continuation.messages,16000-Buffer.byteLength(workspace))
     const run = (prompt:string, images:ReturnType<typeof conversationImages>) => client.run(root, prompt, !textOnly, async()=>false, {
+      session: context.agentId ? undefined : {parent:continuation.parent, saved:id=>{checkpoint=id}},
       inference, images, names: available.map(d=>d.name),
       signal: controller.signal,
       call: async (name,args,id,signal,review) => {
@@ -182,7 +185,7 @@ export async function* nativeQuery(params: QueryParams) {
       let prompt=input
       const history=[...params.messages]
       for(;;){
-        const answer=await run(prompt,conversationImages(history))
+        const answer=await run(prompt,conversationImages(context.agentId ? history : continuation.messages))
         if(!context.agentId)return answer
         const pending=drainPendingMessages(context.agentId,context.getAppState,context.setAppStateForTasks??context.setAppState)
         if(!pending.length)return answer
@@ -194,7 +197,7 @@ export async function* nativeQuery(params: QueryParams) {
         prompt=workspace+conversationPrompt(history,16000-Buffer.byteLength(workspace))
       }
     }
-    void runConversation().then(answer=>{events.enqueue(createAssistantMessage({content:answer}));events.done()},e=>events.error(e))
+    void runConversation().then(answer=>{events.enqueue({...createAssistantMessage({content:answer}), ...(checkpoint ? {gatewayCheckpoint:checkpoint} : {})});events.done()},e=>events.error(e))
     for await(const msg of events)yield msg
   } catch (error) {
     if (!parent.aborted) {

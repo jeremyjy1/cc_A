@@ -69,6 +69,7 @@ function savedServer() {
 type Frame = Record<string, any>
 
 type NativeDispatch = {
+  session?: {parent?:string; saved:(checkpoint:string)=>void}
   modelCatalog?: boolean
   inference?: InferenceOptions
   images?: GatewayImage[]
@@ -169,6 +170,7 @@ export class Gateway {
       this.turns.set(id, {fail: finish, event: m => {
         timer.refresh()
         if (m.type === 'agent.error') {
+          if (m.text === 'session_unavailable') return finish('当前固定池不能恢复该 C 端会话，请核对池版本及绑定')
           if (m.text === 'turn_timed_out') return finish('C 端推理达到本轮时间上限（turn_timed_out）')
           if (m.text === 'inference_failed') return finish('C 端推理失败，未取得最终回复（inference_failed）')
           return finish('Gateway: ' + safe(String(m.text)))
@@ -177,6 +179,7 @@ export class Gateway {
           if ((inference.model && m.model !== inference.model) || (inference.effort && m.effort !== inference.effort)) {
             return drain('C 端未确认所选模型或 effort，请更新 C 端后重试')
           }
+          if (native?.session?.parent && m.persistence !== 'true') return drain('当前池未确认恢复远端对话，请检查 B 和 C 版本')
           started = true
           return
         }
@@ -198,7 +201,11 @@ export class Gateway {
           if (result.truncated) throw Error()
           return
         }
-        if (m.type === 'agent.turn.completed') return finish()
+        if (m.type === 'agent.turn.completed') {
+          if (native?.session && typeof m.checkpoint === 'string' && /^[A-Za-z0-9]{26}$/.test(m.checkpoint)) native.session.saved(m.checkpoint)
+          else if (native?.session?.parent) return finish('C 端没有返回新的会话记录')
+          return finish()
+        }
         if (m.type === 'tool.cancel') { pending.get(m.call_id)?.abort(); return }
         if (m.type !== 'tool.request' || !enabled || typeof m.call_id !== 'string' ||
             !/^[a-zA-Z0-9_-]{1,64}$/.test(m.call_id) || seen.has(m.call_id) || pending.size >= 8) throw Error()
@@ -256,7 +263,7 @@ export class Gateway {
         if(native)void dispatch().catch(()=>finish('Could not return tool result'))
         else this.local=this.local.then(dispatch).catch(()=>finish('Could not return tool result'))
       }})
-      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', model_catalog:native?.modelCatalog, ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
+      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', save_session:native?.session ? true : undefined, resume_from:native?.session?.parent, model_catalog:native?.modelCatalog, ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
         shells:enabled ? shellProfiles(root,native?.names??tools) : {}}))
     })
   }
