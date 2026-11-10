@@ -1,3 +1,4 @@
+import { parseModelCatalog } from './modelCatalog'
 import type { GatewayImage } from './transcript'
 import {rootCertificates} from 'node:tls'
 import {configureKey,configureServer,defaultKeyPath,parseServer,serverPath} from './configure'
@@ -68,6 +69,7 @@ function savedServer() {
 type Frame = Record<string, any>
 
 type NativeDispatch = {
+  modelCatalog?: boolean
   inference?: InferenceOptions
   images?: GatewayImage[]
   names: string[]
@@ -118,8 +120,15 @@ export class Gateway {
   ready() { return this.opened }
   close() { this.socket.close() }
 
+  async listModels(signal: AbortSignal) {
+    const data = await this.run('', '', false, async () => false, {
+      modelCatalog:true, inference:{}, names:[], signal, call:async () => { throw Error('Unexpected catalog tool') },
+    })
+    return parseModelCatalog(data)
+  }
+
   async run(root: string, text: string, enabled: boolean, ask: Ask, native?: NativeDispatch): Promise<string> {
-    if (!text.trim() || Buffer.byteLength(text) > 16000) throw Error('Prompt must be 1–16000 bytes')
+    if (!native?.modelCatalog && (!text.trim() || Buffer.byteLength(text) > 16000)) throw Error('Prompt must be 1–16000 bytes')
     const inference = native?.inference ?? this.defaults
     validateInference(inference)
     await this.opened
@@ -240,7 +249,7 @@ export class Gateway {
         if(native)void dispatch().catch(()=>finish('Could not return tool result'))
         else this.local=this.local.then(dispatch).catch(()=>finish('Could not return tool result'))
       }})
-      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
+      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', model_catalog:native?.modelCatalog, ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
         shells:enabled ? shellProfiles(root,native?.names??tools) : {}}))
     })
   }

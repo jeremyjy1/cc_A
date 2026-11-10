@@ -10,7 +10,8 @@ import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { useAppState, useSetAppState } from '../state/AppState.js';
 import { convertEffortValueToLevel, type EffortLevel, getDefaultEffortForModel, modelSupportsEffort, modelSupportsMaxEffort, resolvePickerEffortPersistence, toPersistableEffort } from '../utils/effort.js';
 import { getDefaultMainLoopModel, type ModelSetting, modelDisplayString, parseUserSpecifiedModel } from '../utils/model/model.js';
-import { getModelOptions } from '../utils/model/modelOptions.js';
+import { isModelAllowed } from '../utils/model/modelAllowlist.js';
+import { type ModelOption, getModelOptions } from '../utils/model/modelOptions.js';
 import { getSettingsForSource, updateSettingsForSource } from '../utils/settings/settings.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
@@ -36,7 +37,34 @@ export type Props = {
   skipSettingsWrite?: boolean;
 };
 const NO_PREFERENCE = '__NO_PREFERENCE__';
-export function ModelPicker(t0) {
+export function ModelPicker(props: Props) {
+  return process.env.CC_A_NATIVE === '1' ? <PoolModelPicker {...props} /> : <ModelPickerMenu {...props} />;
+}
+
+function PoolModelPicker(props: Props) {
+  const [options, setOptions] = useState<ModelOption[]>();
+  const [error, setError] = useState('');
+  React.useEffect(() => {
+    const cancel = new AbortController();
+    const timeout = setTimeout(() => cancel.abort(), 20000);
+    let mounted = true;
+    async function load() {
+      const {nativeGateway} = await import('../gateway/native.js');
+      if (!nativeGateway) throw Error('No gateway connection');
+      const rows = await nativeGateway.client.listModels(cancel.signal);
+      if (mounted) setOptions(rows.filter(row => row.value === null || isModelAllowed(row.value)));
+    }
+    load().catch(() => {
+      if (mounted) setError('无法读取当前 C 池的模型列表，请检查池连接和控制器版本。');
+    }).finally(() => clearTimeout(timeout));
+    return () => { mounted = false; clearTimeout(timeout); cancel.abort(); };
+  }, []);
+  useKeybindings({'confirm:no': () => props.onCancel?.()}, {context:'Confirmation', isActive: !options});
+  if (!options) return <Text>{error || '正在读取当前 C 池的模型列表…'}（Esc 返回）</Text>;
+  return <ModelPickerMenu {...props} poolOptions={options} />;
+}
+
+function ModelPickerMenu(t0) {
   const $ = _c(82);
   const {
     initial,
@@ -67,7 +95,7 @@ export function ModelPicker(t0) {
   const t2 = isFastMode ?? false;
   let t3;
   if ($[2] !== t2) {
-    t3 = getModelOptions(t2);
+    t3 = t0.poolOptions ?? getModelOptions(t2);
     $[2] = t2;
     $[3] = t3;
   } else {
@@ -76,7 +104,7 @@ export function ModelPicker(t0) {
   const modelOptions = t3;
   let t4;
   bb0: {
-    if (initial !== null && !modelOptions.some(opt => opt.value === initial)) {
+    if (!t0.poolOptions && initial !== null && !modelOptions.some(opt => opt.value === initial)) {
       let t5;
       if ($[4] !== initial) {
         t5 = modelDisplayString(initial);
