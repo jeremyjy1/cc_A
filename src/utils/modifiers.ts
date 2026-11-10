@@ -1,36 +1,24 @@
 export type ModifierKey = 'shift' | 'command' | 'control' | 'option'
 
-let prewarmed = false
+type NativeModifiers = {
+  prewarm(): void
+  isModifierPressed(modifier: ModifierKey): boolean
+}
 
-/**
- * Pre-warm the native module by loading it in advance.
- * Call this early to avoid delay on first use.
- */
+let native: NativeModifiers | null | undefined
+
 export function prewarmModifiers(): void {
-  if (prewarmed || process.platform !== 'darwin') {
-    return
-  }
-  prewarmed = true
-  // Load module in background
+  if (native !== undefined || process.platform !== 'darwin') return
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { prewarm } = require('modifiers-napi') as { prewarm: () => void }
-    prewarm()
+    native = require('modifiers-napi') as NativeModifiers
+    native.prewarm()
   } catch {
-    // Ignore errors during prewarm
+    // Source installations can run without the optional macOS keyboard helper.
+    native = null
   }
 }
 
-/**
- * Check if a specific modifier key is currently pressed (synchronous).
- */
 export function isModifierPressed(modifier: ModifierKey): boolean {
-  if (process.platform !== 'darwin') {
-    return false
-  }
-  // Dynamic import to avoid loading native module at top level
-  const { isModifierPressed: nativeIsModifierPressed } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('modifiers-napi') as { isModifierPressed: (m: string) => boolean }
-  return nativeIsModifierPressed(modifier)
+  prewarmModifiers()
+  return native?.isModifierPressed(modifier) ?? false
 }

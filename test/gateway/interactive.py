@@ -17,8 +17,14 @@ with tempfile.TemporaryDirectory() as tmp:
  for _ in range(80):
   time.sleep(.05); port=(d/'results').read_text().strip()
   if port:break
+ env=dict(os.environ,TERM='xterm-256color',HOME=tmp)
+ if sys.platform=='darwin':
+  # Exercise Return in Terminal.app even when the test is launched from an IDE.
+  env.update(TERM_PROGRAM='Apple_Terminal',__CFBundleIdentifier='com.apple.Terminal')
+  env.pop('CURSOR_TRACE_ID',None)
+  env.pop('VSCODE_GIT_ASKPASS_MAIN',None)
  initial=['exercise-fixed-tools'] if scenario=='agent' else []
- p=subprocess.Popen([str(base/'claudec'),'--url',f'ws://127.0.0.1:{port}/v1/ws','--key-file',str(key),'--workspace',str(project),*initial],stdin=sl,stdout=sl,stderr=subprocess.DEVNULL if os.environ.get('CC_TEST_REDIRECT_STDERR')=='1' else sl,env=dict(os.environ,TERM='xterm-256color',HOME=tmp))
+ p=subprocess.Popen([str(base/'claudec'),'--url',f'ws://127.0.0.1:{port}/v1/ws','--key-file',str(key),'--workspace',str(project),*initial],stdin=sl,stdout=sl,stderr=subprocess.DEVNULL if os.environ.get('CC_TEST_REDIRECT_STDERR')=='1' else sl,env=env)
  os.close(sl);data=b'';screen=b'';sent=bool(initial);start=time.monotonic()
  try:
   while time.monotonic()-start<110:
