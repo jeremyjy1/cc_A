@@ -1127,6 +1127,18 @@ function validateMalformedTokenInjection(
   }
 }
 
+// A dollar at the end of a single-quoted argument belongs to that argument
+// (e.g. grep 'end$' 'file name'). Only dismiss the raw-text match when
+// the entire command has unambiguous quoting. Unquoted dollars, escapes,
+// comments, substitutions, heredocs and incomplete quotes stay under review.
+function hasOnlyPlainShellQuoting(command: string): boolean {
+  const token = /[a-zA-Z0-9_./:=@%,+*?!|&; \t-]+|'[^'\r\n]*'|"[^"$`\\\r\n]*"/y
+  while (token.lastIndex < command.length) {
+    if (!token.test(command)) return false
+  }
+  return true
+}
+
 function validateObfuscatedFlags(context: ValidationContext): PermissionResult {
   // Block shell quoting bypass patterns used to circumvent negative lookaheads we use in our regexes to block known dangerous flags
 
@@ -1147,12 +1159,10 @@ function validateObfuscatedFlags(context: ValidationContext): PermissionResult {
   // These checks catch various ways to hide flags using shell quoting
 
   // 1. Block ANSI-C quoting ($'...') - can encode any character via escape sequences
-  // Simple pattern that matches $'...' anywhere. This correctly handles:
-  // - grep '$' file => no match ($ is regex anchor inside quotes, no $'...' structure)
-  // - 'test'$'-exec' => match (quote concatenation with ANSI-C)
-  // - Zero-width space and other invisible chars => match
-  // The pattern requires $' followed by content (can be empty) followed by closing '
-  if (/\$'[^']*'/.test(originalCommand)) {
+  if (
+    /\$'[^']*'/.test(originalCommand) &&
+    !hasOnlyPlainShellQuoting(originalCommand)
+  ) {
     logEvent('tengu_bash_security_check_triggered', {
       checkId: BASH_SECURITY_CHECK_IDS.OBFUSCATED_FLAGS,
       subId: 5,
