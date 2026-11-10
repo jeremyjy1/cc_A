@@ -1,7 +1,7 @@
 import { parseModelCatalog } from './modelCatalog'
 import type { GatewayImage } from './transcript'
 import {rootCertificates} from 'node:tls'
-import {configureKey,configureServer,defaultKeyPath,parseServer,serverPath} from './configure'
+import {configureKey,configureServer,isGatewayPermissionMode,savedPermissionMode,defaultKeyPath,parseServer,serverPath} from './configure'
 import { executorOS, shellProfiles } from './platform'
 import { constants, closeSync, fstatSync, openSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -287,7 +287,7 @@ export async function gatewayMain(args: string[]) {
   const effort = v.effort === 'auto' ? undefined : v.effort
   validateInference({model, effort})
   const mode=v['permission-mode']
-  if(mode!==undefined && !['default','acceptEdits','plan','auto','dontAsk','bypassPermissions'].includes(mode))throw Error('Unknown permission mode: '+mode)
+  if(mode!==undefined && !isGatewayPermissionMode(mode))throw Error('Unknown permission mode: '+mode)
   const printCount=tokens.filter(t=>t.kind==='option' && t.name==='print').length
   if(positionals.length>Math.max(1,printCount) || (v.prompt?.length && positionals.length))throw Error(usage)
   let initialPrompt:string|undefined
@@ -342,6 +342,7 @@ export async function gatewayMain(args: string[]) {
   if (v.continue && v.resume) throw Error('Choose --continue or --resume')
   if (v.native || (!v.simple && (v.prompt?.length ?? 0) <= 1)){
     if(v.prompt && v.prompt.length!==1) throw Error('Native print mode accepts one prompt')
+    const startupMode = mode ?? savedPermissionMode(state)
     const gateway=new Gateway(url,key,undefined,{model,effort})
     await gateway.ready()
     let cleanup: (()=>void) | undefined
@@ -372,7 +373,7 @@ export async function gatewayMain(args: string[]) {
       cleanup=()=>{closeSessionTools();setNativeGateway(undefined)}
       const {embeddedCatalog}=await import('./registry')
       const names=embeddedCatalog.map(d=>d.name==='Task'?'Agent':d.name).join(',')
-      process.argv=[process.argv[0]!,process.argv[1]!,...(process.env.CC_A_DEBUG_FILE?['--debug-file',process.env.CC_A_DEBUG_FILE]:[]),...(model?['--model',model]:[]),...(effort?['--effort',effort]:[]),...(mode?['--permission-mode',mode]:[]),...(v['allow-dangerously-skip-permissions']?['--allow-dangerously-skip-permissions']:[]),'--setting-sources','','--strict-mcp-config',...(v['mcp-config']?['--mcp-config',realpathSync(resolve(base,v['mcp-config']))]:[]),'--tools',v['text-only']?'':names,...(v.continue?['--continue']:v.resume?['--resume',v.resume]:[]),...(v.prompt?['-p',v.prompt[0]!]:initialPrompt?['--',initialPrompt]:[])]
+      process.argv=[process.argv[0]!,process.argv[1]!,...(process.env.CC_A_DEBUG_FILE?['--debug-file',process.env.CC_A_DEBUG_FILE]:[]),...(model?['--model',model]:[]),...(effort?['--effort',effort]:[]),...(startupMode?['--permission-mode',startupMode]:[]),...(v['allow-dangerously-skip-permissions']?['--allow-dangerously-skip-permissions']:[]),'--setting-sources','','--strict-mcp-config',...(v['mcp-config']?['--mcp-config',realpathSync(resolve(base,v['mcp-config']))]:[]),'--tools',v['text-only']?'':names,...(v.continue?['--continue']:v.resume?['--resume',v.resume]:[]),...(v.prompt?['-p',v.prompt[0]!]:initialPrompt?['--',initialPrompt]:[])]
       await (await import('../main')).main()
     }finally{
       gateway.close()

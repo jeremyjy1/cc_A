@@ -76,7 +76,7 @@ bun install --frozen-lockfile
 
 ## 权限模式
 
-用 `claudec --permission-mode plan` 指定启动模式。交互时按 `Shift+Tab` 在手动、接受编辑、计划及可用的可选模式之间切换。要让跳过审批出现在切换列表中，启动时加 `--allow-dangerously-skip-permissions`。无提示模式通过命令行选择。权限模式适用于原生会话，包括单个 `-p` 请求。
+用 `claudec --permission-mode plan` 指定启动模式。交互时按 `Shift+Tab` 在手动、接受编辑、计划及可用的可选模式之间切换。要让跳过审批出现在切换列表中，启动时加 `--allow-dangerously-skip-permissions`。Shift+Tab 确认的选择按本机接入密钥保存。新会话、`--continue` 和 `--resume` 都沿用最后一次选择；显式 `--permission-mode` 只覆盖本次启动。已选中的跳过审批模式也会被记住。无提示模式通过命令行选择。权限模式适用于原生会话，包括单个 `-p` 请求。
 
 | 参数值 | A 端行为 |
 | --- | --- |

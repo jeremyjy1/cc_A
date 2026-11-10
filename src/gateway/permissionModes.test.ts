@@ -97,3 +97,29 @@ test('Auto keeps explicit session rules local, including rules on a pipeline seg
     expect(hostReviewable(result), command).toBe(false)
   }
 })
+
+test('confirmed gateway mode survives a fresh read and stays in its key scope', async () => {
+  const {saveGatewayPermissionMode, savedPermissionMode} = await import('./configure')
+  const dir = mkdtempSync(join(tmpdir(), 'claudec-mode-setting-'))
+  const state = join(dir, 'key-one')
+  const previousState = process.env.CLAUDE_CONFIG_DIR
+  const previousNative = process.env.CC_A_NATIVE
+  try {
+    process.env.CLAUDE_CONFIG_DIR = state
+    process.env.CC_A_NATIVE = '1'
+    expect(savedPermissionMode(state)).toBeUndefined()
+    for (const mode of ['auto', 'acceptEdits', 'plan', 'bypassPermissions', 'default']) {
+      saveGatewayPermissionMode(mode)
+      expect(savedPermissionMode(state)).toBe(mode)
+    }
+    expect(savedPermissionMode(join(dir, 'key-two'))).toBeUndefined()
+    expect(() => saveGatewayPermissionMode('unknown')).toThrow()
+    expect(savedPermissionMode(state)).toBe('default')
+  } finally {
+    if (previousState === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = previousState
+    if (previousNative === undefined) delete process.env.CC_A_NATIVE
+    else process.env.CC_A_NATIVE = previousNative
+    rmSync(dir, {recursive:true, force:true})
+  }
+})

@@ -1,4 +1,4 @@
-import {mkdirSync,openSync,closeSync,readSync,writeFileSync,fsyncSync,renameSync,unlinkSync} from 'node:fs'
+import {mkdirSync,openSync,closeSync,readFileSync,readSync,writeFileSync,fsyncSync,renameSync,unlinkSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join,dirname} from 'node:path'
@@ -111,4 +111,31 @@ export function configureServer() {
   const url = parseServer(Buffer.from(bytes).toString('utf8'))
   saveSetting(serverPath(), url.href)
   console.log('A 端默认服务器地址已保存。')
+}
+
+
+const permissionModes = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions'] as const
+type GatewayPermissionMode = typeof permissionModes[number]
+
+export function isGatewayPermissionMode(value: string): value is GatewayPermissionMode {
+  return permissionModes.some(mode => mode === value)
+}
+
+export function savedPermissionMode(state: string): GatewayPermissionMode | undefined {
+  let value: string
+  try {
+    value = readFileSync(join(state, 'permission-mode'), 'utf8').trim()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
+  if (!isGatewayPermissionMode(value)) throw Error('保存的审批模式无效，请用 --permission-mode 指定模式')
+  return value
+}
+
+export function saveGatewayPermissionMode(mode: string) {
+  if (process.env.CC_A_NATIVE !== '1') return
+  const state = process.env.CLAUDE_CONFIG_DIR
+  if (!state || !isGatewayPermissionMode(mode)) throw Error('无法保存审批模式')
+  saveSetting(join(state, 'permission-mode'), mode)
 }

@@ -1,3 +1,4 @@
+import { saveGatewayPermissionMode } from '../../gateway/configure'
 import { feature } from 'bun:bundle';
 import chalk from 'chalk';
 import * as path from 'path';
@@ -1406,6 +1407,14 @@ function PromptInput({
     }
   }, [helpOpen]);
 
+  const rememberPermissionMode = useCallback((mode: string) => {
+    try {
+      saveGatewayPermissionMode(mode);
+    } catch {
+      addNotification({key: 'permission-mode-save', text: '审批模式已切换，但未能保存到本机。', priority: 'immediate'});
+    }
+  }, [addNotification]);
+
   // Handler for chat:cycleMode - cycle through permission modes
   const handleCycleMode = useCallback(() => {
     // When viewing a teammate, cycle their mode instead of the leader's
@@ -1547,13 +1556,14 @@ function PromptInput({
     });
 
     // If this is a teammate, update config.json so team lead sees the change
+    rememberPermissionMode(nextMode);
     syncTeammateMode(nextMode, teamContext?.teamName);
 
     // Close help tips if they're open when mode is cycled
     if (helpOpen) {
       setHelpOpen(false);
     }
-  }, [toolPermissionContext, teamContext, viewingAgentTaskId, viewedTeammate, setAppState, setToolPermissionContext, helpOpen, showAutoModeOptIn]);
+  }, [toolPermissionContext, teamContext, viewingAgentTaskId, viewedTeammate, setAppState, setToolPermissionContext, helpOpen, showAutoModeOptIn, rememberPermissionMode]);
 
   // Handler for auto mode opt-in dialog acceptance
   const handleAutoModeOptInAccept = useCallback(() => {
@@ -1577,12 +1587,13 @@ function PromptInput({
         mode: 'auto'
       });
 
+      rememberPermissionMode('auto');
       // Close help tips if they're open when auto mode is enabled
       if (helpOpen) {
         setHelpOpen(false);
       }
     }
-  }, [helpOpen, setHelpOpen, previousModeBeforeAuto, toolPermissionContext, setAppState, setToolPermissionContext]);
+  }, [helpOpen, setHelpOpen, previousModeBeforeAuto, toolPermissionContext, setAppState, setToolPermissionContext, rememberPermissionMode]);
 
   // Handler for auto mode opt-in dialog decline
   const handleAutoModeOptInDecline = useCallback(() => {
