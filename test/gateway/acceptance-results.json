@@ -1,0 +1,84 @@
+{
+  "date": "2026-11-10",
+  "runtime": "Bun 1.3.14",
+  "platforms": {
+    "macOS ARM64": {
+      "local_tools_passed": 35,
+      "regression_tests_passed": 10
+    },
+    "Linux ARM64 (Docker on Mac)": {
+      "local_tools_passed": 35,
+      "regression_tests_passed": 10
+    },
+    "Windows 11 ARM64 (Docker on Mac)": {
+      "local_tools_passed": 36,
+      "successful_tool_names": [
+        "AskUserQuestion",
+        "Bash",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "Edit",
+        "EndConversation",
+        "EnterPlanMode",
+        "EnterWorktree",
+        "ExitPlanMode",
+        "ExitWorktree",
+        "Glob",
+        "Grep",
+        "LSP",
+        "ListAgents",
+        "ListMcpResourcesTool",
+        "Monitor",
+        "PowerShell",
+        "Read",
+        "ReadMcpResourceTool",
+        "ReportFindings",
+        "ScheduleWakeup",
+        "SendMessage",
+        "Skill",
+        "SubagentHandback",
+        "Task",
+        "TaskCreate",
+        "TaskGet",
+        "TaskList",
+        "TaskStop",
+        "TaskUpdate",
+        "TodoWrite",
+        "ToolSearch",
+        "WaitForMcpServers",
+        "Workflow",
+        "Write"
+      ],
+      "readonly_cli_cases_passed": 11,
+      "session_resume_and_headless_write_denial": "passed"
+    }
+  },
+  "interactive_matrix_per_platform": {
+    "operation_responses_checked": 28,
+    "agent_responses_checked": 5,
+    "plan_mode_workspace_write": "denied as expected"
+  },
+  "live_fixed_pool": {
+    "pool": "server05",
+    "task": "Repair the square function through a locally approved Edit",
+    "inputs": [
+      0,
+      7,
+      -3
+    ],
+    "expected": [
+      0,
+      49,
+      9
+    ],
+    "macOS_python": "passed",
+    "Linux_python": "passed",
+    "Windows_TypeScript": "passed",
+    "windows_temporary_key_removed": true
+  },
+  "native_web_tools_on_C": {
+    "WebSearch": "passed",
+    "WebFetch": "unavailable: upstream domain verification returned HTTP 403"
+  }
+}

@@ -1,0 +1,1083 @@
+[
+  {
+    "name": "AskUserQuestion",
+    "description": "Ask the workspace user for a decision.",
+    "requires_approval": true,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "notes": {
+                "type": "string"
+              },
+              "preview": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "answers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "metadata": {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "header": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "multiSelect": {
+                "type": "boolean"
+              },
+              "options": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "preview": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "description"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "header",
+              "question",
+              "multiSelect",
+              "options"
+            ]
+          }
+        }
+      },
+      "required": [
+        "questions"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "Bash",
+    "description": "Request an approved shell command on A.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string"
+        },
+        "run_in_background": {
+          "type": "boolean"
+        },
+        "dangerouslyDisableSandbox": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CronCreate",
+    "description": "Schedule a session prompt.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cron": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "recurring": {
+          "type": "boolean"
+        },
+        "durable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cron",
+        "prompt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CronDelete",
+    "description": "Cancel a scheduled prompt.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CronList",
+    "description": "List scheduled session prompts.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Edit",
+    "description": "Replace an exact string in a workspace file.",
+    "requires_approval": true,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "file_path": {
+          "type": "string"
+        },
+        "new_string": {
+          "type": "string"
+        },
+        "old_string": {
+          "type": "string"
+        },
+        "replace_all": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "file_path",
+        "old_string",
+        "new_string"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "EndConversation",
+    "description": "End the active conversation.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "EnterPlanMode",
+    "description": "Enter planning mode.",
+    "requires_approval": true,
+    "inputSchema": {
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  {
+    "name": "EnterWorktree",
+    "description": "Create or enter a Git worktree.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ExitPlanMode",
+    "description": "Present the plan and request approval.",
+    "requires_approval": true,
+    "inputSchema": {
+      "additionalProperties": {},
+      "properties": {
+        "allowedPrompts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "tool": {
+                "const": "Bash",
+                "type": "string"
+              }
+            },
+            "required": [
+              "tool",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "ExitWorktree",
+    "description": "Leave the current Git worktree.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "keep",
+            "remove"
+          ]
+        },
+        "discard_changes": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Glob",
+    "description": "Find paths by glob in the A workspace.",
+    "requires_approval": false,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "pattern": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "Grep",
+    "description": "Search file contents with a regular expression.",
+    "requires_approval": false,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "-A": {
+          "type": "number"
+        },
+        "-B": {
+          "type": "number"
+        },
+        "-C": {
+          "type": "number"
+        },
+        "-i": {
+          "type": "boolean"
+        },
+        "-n": {
+          "type": "boolean"
+        },
+        "-o": {
+          "type": "boolean"
+        },
+        "context": {
+          "type": "number"
+        },
+        "glob": {
+          "type": "string"
+        },
+        "head_limit": {
+          "type": "number"
+        },
+        "multiline": {
+          "type": "boolean"
+        },
+        "offset": {
+          "type": "number"
+        },
+        "output_mode": {
+          "enum": [
+            "content",
+            "files_with_matches",
+            "count"
+          ],
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "LSP",
+    "description": "Query the workspace language server.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "enum": [
+            "goToDefinition",
+            "findReferences",
+            "hover",
+            "documentSymbol",
+            "workspaceSymbol",
+            "goToImplementation",
+            "prepareCallHierarchy",
+            "incomingCalls",
+            "outgoingCalls"
+          ]
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "character": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "operation",
+        "filePath",
+        "line",
+        "character"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ListAgents",
+    "description": "List agents in this local project session.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "q": {
+          "type": "string",
+          "maxLength": 256
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ListMcpResourcesTool",
+    "description": "List resources from connected workspace MCP servers.",
+    "requires_approval": false,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "server": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "Monitor",
+    "description": "Monitor command output or a WebSocket from A.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "timeout_ms": {
+          "type": "number",
+          "minimum": 1000,
+          "maximum": 3600000
+        },
+        "command": {
+          "type": "string"
+        },
+        "ws": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "protocols": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+              }
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "description",
+        "timeout_ms"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "PowerShell",
+    "description": "Request an approved PowerShell command on A.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string"
+        },
+        "run_in_background": {
+          "type": "boolean"
+        },
+        "dangerouslyDisableSandbox": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Read",
+    "description": "Read a file in the A workspace, optionally a line range or PDF pages.",
+    "requires_approval": false,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_large": {
+          "type": "boolean"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        },
+        "offset": {
+          "type": "number"
+        },
+        "pages": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "ReadMcpResourceTool",
+    "description": "Read a resource by server and URI.",
+    "requires_approval": false,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "server": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "server",
+        "uri"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "ReportFindings",
+    "description": "Present structured code-review findings.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "findings": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "summary": {
+                "type": "string"
+              },
+              "short_summary": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "failure_scenario": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "CONFIRMED",
+                  "PLAUSIBLE"
+                ]
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "fixed",
+                  "skipped",
+                  "no_change_needed"
+                ]
+              }
+            },
+            "required": [
+              "file",
+              "summary",
+              "failure_scenario"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "findings"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ScheduleWakeup",
+    "description": "Schedule or stop the next loop iteration.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "delaySeconds": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "stop": {
+          "type": "boolean"
+        },
+        "noop": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SendMessage",
+    "description": "Send a message to a local session agent.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "allOf": [
+            {
+              "pattern": "^[^\\n\\r]*$"
+            },
+            {
+              "pattern": "^[\\s\\S]{0,300}$"
+            }
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "message": {
+          "type": "string"
+        },
+        "notify_when_idle": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "to",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Skill",
+    "description": "Invoke a registered workspace skill.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "skill": {
+          "type": "string"
+        },
+        "args": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "skill"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SubagentHandback",
+    "description": "Return a final report to the parent agent.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Task",
+    "description": "Delegate work to a local subagent.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "subagent_type": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "sonnet",
+            "opus",
+            "haiku",
+            "fable"
+          ]
+        },
+        "effort": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "run_in_background": {
+          "type": "boolean"
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "worktree"
+          ]
+        }
+      },
+      "required": [
+        "description",
+        "prompt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TaskCreate",
+    "description": "Create a work item.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "activeForm": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "subject",
+        "description"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TaskGet",
+    "description": "Retrieve a work item.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TaskList",
+    "description": "List session work items.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TaskStop",
+    "description": "Stop a background task.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "shell_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TaskUpdate",
+    "description": "Update a work item or its dependencies.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "activeForm": {
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "pending",
+                "in_progress",
+                "completed"
+              ]
+            },
+            {
+              "type": "string",
+              "const": "deleted"
+            }
+          ]
+        },
+        "addBlocks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "addBlockedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owner": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "taskId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TodoWrite",
+    "description": "Replace the session checklist.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "todos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "content": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "in_progress",
+                  "completed"
+                ]
+              },
+              "activeForm": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "content",
+              "status",
+              "activeForm"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "todos"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ToolSearch",
+    "description": "Find registered tool names and their input contracts.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "WaitForMcpServers",
+    "description": "Wait for selected workspace MCP servers.",
+    "requires_approval": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Workflow",
+    "description": "Run an approved local agent workflow.",
+    "requires_approval": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "type": "string",
+          "maxLength": 524288
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "args": {},
+        "scriptPath": {
+          "type": "string"
+        },
+        "resumeFromRunId": {
+          "type": "string",
+          "pattern": "^wf_[a-z0-9-]{6,}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "Write",
+    "description": "Create or overwrite a file in the A workspace.",
+    "requires_approval": true,
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path",
+        "content"
+      ],
+      "type": "object"
+    }
+  }
+]
