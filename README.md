@@ -1,313 +1,81 @@
-# Claude Code — Leaked Source (2026-03-31)
+# cc_A · 本地终端客户端
 
-[A 端固定池客户端使用与跨平台验收说明](GATEWAY.md)
+在要处理的项目目录运行 `claudec`，就能让模型读取代码、解释报错，或在你确认后修改文件。终端、工作区工具和操作审批都在本机（A）。网关（B）根据你的接入密钥选择固定的虚拟机池（C），由 C 调用模型。A 只需一把 B 签发的 **A 端接入密钥**，无需配置 SSH、Claude 订阅或模型服务的 API Key。
 
+## 在已安装的 Mac 上开始使用
 
-> **On March 31, 2026, the full source code of Anthropic's Claude Code CLI was leaked** via a `.map` file exposed in their npm registry.
+1. 首次使用时运行下方命令，按提示粘贴管理员发给你的 `gw1_` 密钥并回车。输入时终端会隐藏密钥。
 
----
+   ```sh
+   claudec config set-key
+   ```
 
-## How It Leaked
+2. 当前部署的默认网关是 `wss://8.153.176.226/v1/ws`。使用默认地址可以直接进入下一步。要更换网关，运行 `claudec config set-server`，按提示输入管理员提供的完整 WSS 地址。
 
-[Chaofan Shou (@Fried_rice)](https://x.com/Fried_rice) discovered the leak and posted it publicly:
+3. 进入要处理的项目目录，启动会话。下面的路径请换成自己的项目。
 
-> **"Claude code source code has been leaked via a map file in their npm registry!"**
->
-> — [@Fried_rice, March 31, 2026](https://x.com/Fried_rice/status/2038894956459290963)
+   ```sh
+   cd ~/Projects/my-app
+   claudec
+   ```
 
-The source map file in the published npm package contained a reference to the full, unobfuscated TypeScript source, which was downloadable as a zip archive from Anthropic's R2 storage bucket.
+   可以先问「请读取 README.md，告诉我这个项目怎么启动」。需要确认的编辑或命令会在当前终端显示审批提示。后续使用只需在项目目录运行 `claudec`。
 
----
+## 从源码启动
 
-## Quick Setup
+新机器需要 Git 和 Bun 1.3 或更高版本。macOS 和 Linux 的工作区工具还会用到 Python 3 和 ripgrep（`rg`）。Linux 的隔离 Bash 需要可用的 bubblewrap；Windows 的文件搜索使用 `rg.exe`，Git Bash 工具需要 Git for Windows。
 
-### Prerequisites
+```sh
+git clone https://github.com/jeremyjy1/cc_A.git
+cd cc_A
+bun install --frozen-lockfile
+```
 
-- **[Bun](https://bun.sh)** v1.3+ (the project's runtime)
-- **Node.js** v18+ (for npm package installation)
-- A gateway access key issued for the A role by the B administrator
+在客户端仓库中运行下面的命令。`--workspace` 指向你要处理的项目目录；也可以从项目目录用启动脚本的绝对路径运行，默认工作区就是当前目录。
 
-### Install & Run
+**macOS、Linux 或 WSL**
 
-```bash
-# 1. Install Bun (if not already installed)
-curl -fsSL https://bun.sh/install | bash
-source ~/.bash_profile  # or restart your terminal
-
-# 2. Install dependencies
-npm install --legacy-peer-deps
-
-# 3. Configure and start the A client
-./claudec config set-server
+```sh
 ./claudec config set-key
-bun run start
-
-# Or with arguments:
-bun run start -- --help
-bun run start -- --version
-bun run start -- -p "Hello Claude"
+./claudec --workspace ~/Projects/my-app
 ```
 
-### Available Scripts
+**Windows PowerShell**
 
-| Script | Description |
-|--------|-------------|
-| `bun run start` | Run Claude Code CLI |
-| `bun run dev` | Run with hot-reloading (--watch) |
-| `bun run build` | Bundle for production |
-| `bun run typecheck` | Run TypeScript type checking |
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Your Anthropic API key (required to use Claude) |
-| `FEATURE_FLAGS` | Comma-separated list of feature flags to enable (e.g., `KAIROS,VOICE_MODE`) |
-
-### Notes
-
-- Some modules from the original source were not included in the leak (Anthropic-internal `@ant/*` packages, some tools). These have been replaced with stubs that export no-ops.
-- The `bun:bundle` feature flag system is shimmed via a Bun plugin at `plugins/bunBundleDev.ts`. All flags default to `false` unless enabled via `FEATURE_FLAGS`.
-- The `MACRO.*` build-time constants are defined in `bunfig.toml` and injected by Bun's `--define` system.
-
----
-
-## Overview
-
-Claude Code is Anthropic's official CLI tool that lets you interact with Claude directly from the terminal to perform software engineering tasks — editing files, running commands, searching codebases, managing git workflows, and more.
-
-This repository contains the leaked `src/` directory.
-
-- **Leaked on**: 2026-03-31
-- **Language**: TypeScript
-- **Runtime**: Bun
-- **Terminal UI**: React + [Ink](https://github.com/vadimdemedes/ink) (React for CLI)
-- **Scale**: ~1,900 files, 512,000+ lines of code
-
----
-
-## Directory Structure
-
-```
-src/
-├── main.tsx                 # Entrypoint (Commander.js-based CLI parser)
-├── commands.ts              # Command registry
-├── tools.ts                 # Tool registry
-├── Tool.ts                  # Tool type definitions
-├── QueryEngine.ts           # LLM query engine (core Anthropic API caller)
-├── context.ts               # System/user context collection
-├── cost-tracker.ts          # Token cost tracking
-│
-├── commands/                # Slash command implementations (~50)
-├── tools/                   # Agent tool implementations (~40)
-├── components/              # Ink UI components (~140)
-├── hooks/                   # React hooks
-├── services/                # External service integrations
-├── screens/                 # Full-screen UIs (Doctor, REPL, Resume)
-├── types/                   # TypeScript type definitions
-├── utils/                   # Utility functions
-│
-├── bridge/                  # IDE integration bridge (VS Code, JetBrains)
-├── coordinator/             # Multi-agent coordinator
-├── plugins/                 # Plugin system
-├── skills/                  # Skill system
-├── keybindings/             # Keybinding configuration
-├── vim/                     # Vim mode
-├── voice/                   # Voice input
-├── remote/                  # Remote sessions
-├── server/                  # Server mode
-├── memdir/                  # Memory directory (persistent memory)
-├── tasks/                   # Task management
-├── state/                   # State management
-├── migrations/              # Config migrations
-├── schemas/                 # Config schemas (Zod)
-├── entrypoints/             # Initialization logic
-├── ink/                     # Ink renderer wrapper
-├── buddy/                   # Companion sprite (Easter egg)
-├── native-ts/               # Native TypeScript utils
-├── outputStyles/            # Output styling
-├── query/                   # Query pipeline
-└── upstreamproxy/           # Proxy configuration
+```powershell
+.\claudec.cmd config set-key
+.\claudec.cmd --workspace "C:\Projects\my-app"
 ```
 
----
+以下示例使用已加入 PATH 的 `claudec`。从源码启动时，使用相应平台的启动脚本即可。
 
-## Core Architecture
+## 对话与历史
 
-### 1. Tool System (`src/tools/`)
+| 要做的事 | 命令 |
+| --- | --- |
+| 开启新会话并带入第一个问题 | `claudec "这个项目的入口在哪里？"` |
+| 回答一次并退出，适合脚本或只读问题 | `claudec -p "读取 README.md，列出运行测试的步骤"` |
+| 从标准输入提问，仅发送文本 | `printf '用一句话解释这个错误：文件不存在' \| claudec --text-only --print` |
+| 离线列出当前工作区的本地会话 | `claudec history` |
+| 按标题、首条提示、摘要或会话 ID 搜索 | `claudec history --search 登录` |
+| 继续最近一次会话 | `claudec --continue` |
+| 恢复指定会话 | `claudec --resume <会话ID>` |
 
-Every tool Claude Code can invoke is implemented as a self-contained module. Each tool defines its input schema, permission model, and execution logic.
+同一把密钥可以在多个终端同时使用。每个终端运行一次 `claudec` 就会开启独立对话，工具请求和回复回到各自的终端。现有每个固定池可同时执行两个任务；遇到 `pool_busy` 时，等其中一个任务结束后重试即可。
 
-| Tool | Description |
-|---|---|
-| `BashTool` | Shell command execution |
-| `FileReadTool` | File reading (images, PDFs, notebooks) |
-| `FileWriteTool` | File creation / overwrite |
-| `FileEditTool` | Partial file modification (string replacement) |
-| `GlobTool` | File pattern matching search |
-| `GrepTool` | ripgrep-based content search |
-| `WebFetchTool` | Fetch URL content |
-| `WebSearchTool` | Web search |
-| `AgentTool` | Sub-agent spawning |
-| `SkillTool` | Skill execution |
-| `MCPTool` | MCP server tool invocation |
-| `LSPTool` | Language Server Protocol integration |
-| `NotebookEditTool` | Jupyter notebook editing |
-| `TaskCreateTool` / `TaskUpdateTool` | Task creation and management |
-| `SendMessageTool` | Inter-agent messaging |
-| `TeamCreateTool` / `TeamDeleteTool` | Team agent management |
-| `EnterPlanModeTool` / `ExitPlanModeTool` | Plan mode toggle |
-| `EnterWorktreeTool` / `ExitWorktreeTool` | Git worktree isolation |
-| `ToolSearchTool` | Deferred tool discovery |
-| `CronCreateTool` | Scheduled trigger creation |
-| `RemoteTriggerTool` | Remote trigger |
-| `SleepTool` | Proactive mode wait |
-| `SyntheticOutputTool` | Structured output generation |
+历史按工作区和密钥保存。多个终端并用时，可以从 `claudec history` 复制 ID，再用 `--resume` 精确接回某次对话。换了密钥或项目目录，历史列表也会切换。`--simple` 兼容模式不写入上述历史。需要审批的操作请在交互会话中执行。
 
-### 2. Command System (`src/commands/`)
+## 图片和网页
 
-User-facing slash commands invoked with `/` prefix.
+在交互终端把图片拖入输入框，看到图片标记后输入问题并回车。同一会话里可以继续追问另一处细节，无需再次拖入原图；附上新图后，后续追问会使用最新的一组。支持 PNG、JPEG、GIF 和 WebP，每轮最多 4 张，单张最多 4 MiB，总计最多 8 MiB。新会话或上下文压缩后需要重新附图。
 
-| Command | Description |
-|---|---|
-| `/commit` | Create a git commit |
-| `/review` | Code review |
-| `/compact` | Context compression |
-| `/mcp` | MCP server management |
-| `/config` | Settings management |
-| `/doctor` | Environment diagnostics |
-| `/login` / `/logout` | Authentication |
-| `/memory` | Persistent memory management |
-| `/skills` | Skill management |
-| `/tasks` | Task management |
-| `/vim` | Vim mode toggle |
-| `/diff` | View changes |
-| `/cost` | Check usage cost |
-| `/theme` | Change theme |
-| `/context` | Context visualization |
-| `/pr_comments` | View PR comments |
-| `/resume` | Restore previous session |
-| `/share` | Share session |
-| `/desktop` | Desktop app handoff |
-| `/mobile` | Mobile app handoff |
+读取、搜索和编辑项目文件使用 A 的工作区。网页搜索与抓取使用 C 上的原生工具，因此网页能否访问取决于 C 的网络环境。
 
-### 3. Service Layer (`src/services/`)
+## 配置与排查
 
-| Service | Description |
-|---|---|
-| `api/` | Anthropic API client, file API, bootstrap |
-| `mcp/` | Model Context Protocol server connection and management |
-| `oauth/` | OAuth 2.0 authentication flow |
-| `lsp/` | Language Server Protocol manager |
-| `analytics/` | GrowthBook-based feature flags and analytics |
-| `plugins/` | Plugin loader |
-| `compact/` | Conversation context compression |
-| `policyLimits/` | Organization policy limits |
-| `remoteManagedSettings/` | Remote managed settings |
-| `extractMemories/` | Automatic memory extraction |
-| `tokenEstimation.ts` | Token count estimation |
-| `teamMemorySync/` | Team memory synchronization |
+- **连接失败**：用 `claudec config set-server` 核对并重新保存完整网关地址，再用 `claudec config set-key` 更新 A 密钥。密钥的目标池、轮换和撤销由 B 管理员控制。
+- **临时切换配置**：用 `--url` 指定本次连接地址，用 `--key-file` 指定另一份密钥文件。地址选择顺序为命令行、环境变量 `CC_GATEWAY_URL`、已保存地址、内置地址。密钥文件选择顺序为命令行、`CC_A_KEY_FILE`、默认文件。
+- **工作区被拒绝**：请选择具体项目目录，并将密钥放在工作区外。默认位置为 macOS/Linux 的 `~/.config/cc-a/access.key`，或 Windows 的 `%LOCALAPPDATA%\cc-a\access.key`。用 `config set-key` 保存时，客户端会设置文件权限。
+- **查询用量**：B 管理员可在[管理控制台](https://8.153.176.226/admin/)按 A 密钥查看请求数和 token 用量。
 
-### 4. Bridge System (`src/bridge/`)
-
-A bidirectional communication layer connecting IDE extensions (VS Code, JetBrains) with the Claude Code CLI.
-
-- `bridgeMain.ts` — Bridge main loop
-- `bridgeMessaging.ts` — Message protocol
-- `bridgePermissionCallbacks.ts` — Permission callbacks
-- `replBridge.ts` — REPL session bridge
-- `jwtUtils.ts` — JWT-based authentication
-- `sessionRunner.ts` — Session execution management
-
-### 5. Permission System (`src/hooks/toolPermission/`)
-
-Checks permissions on every tool invocation. Either prompts the user for approval/denial or automatically resolves based on the configured permission mode (`default`, `plan`, `bypassPermissions`, `auto`, etc.).
-
-### 6. Feature Flags
-
-Dead code elimination via Bun's `bun:bundle` feature flags:
-
-```typescript
-import { feature } from 'bun:bundle'
-
-// Inactive code is completely stripped at build time
-const voiceCommand = feature('VOICE_MODE')
-  ? require('./commands/voice/index.js').default
-  : null
-```
-
-Notable flags: `PROACTIVE`, `KAIROS`, `BRIDGE_MODE`, `DAEMON`, `VOICE_MODE`, `AGENT_TRIGGERS`, `MONITOR_TOOL`
-
----
-
-## Key Files in Detail
-
-### `QueryEngine.ts` (~46K lines)
-
-The core engine for LLM API calls. Handles streaming responses, tool-call loops, thinking mode, retry logic, and token counting.
-
-### `Tool.ts` (~29K lines)
-
-Defines base types and interfaces for all tools — input schemas, permission models, and progress state types.
-
-### `commands.ts` (~25K lines)
-
-Manages registration and execution of all slash commands. Uses conditional imports to load different command sets per environment.
-
-### `main.tsx`
-
-Commander.js-based CLI parser + React/Ink renderer initialization. At startup, parallelizes MDM settings, keychain prefetch, and GrowthBook initialization for faster boot.
-
----
-
-## Tech Stack
-
-| Category | Technology |
-|---|---|
-| Runtime | [Bun](https://bun.sh) |
-| Language | TypeScript (strict) |
-| Terminal UI | [React](https://react.dev) + [Ink](https://github.com/vadimdemedes/ink) |
-| CLI Parsing | [Commander.js](https://github.com/tj/commander.js) (extra-typings) |
-| Schema Validation | [Zod v4](https://zod.dev) |
-| Code Search | [ripgrep](https://github.com/BurntSushi/ripgrep) (via GrepTool) |
-| Protocols | [MCP SDK](https://modelcontextprotocol.io), LSP |
-| API | [Anthropic SDK](https://docs.anthropic.com) |
-| Telemetry | OpenTelemetry + gRPC |
-| Feature Flags | GrowthBook |
-| Auth | OAuth 2.0, JWT, macOS Keychain |
-
----
-
-## Notable Design Patterns
-
-### Parallel Prefetch
-
-Startup time is optimized by prefetching MDM settings, keychain reads, and API preconnect in parallel — before heavy module evaluation begins.
-
-```typescript
-// main.tsx — fired as side-effects before other imports
-startMdmRawRead()
-startKeychainPrefetch()
-```
-
-### Lazy Loading
-
-Heavy modules (OpenTelemetry ~400KB, gRPC ~700KB) are deferred via dynamic `import()` until actually needed.
-
-### Agent Swarms
-
-Sub-agents are spawned via `AgentTool`, with `coordinator/` handling multi-agent orchestration. `TeamCreateTool` enables team-level parallel work.
-
-### Skill System
-
-Reusable workflows defined in `skills/` and executed through `SkillTool`. Users can add custom skills.
-
-### Plugin Architecture
-
-Built-in and third-party plugins are loaded through the `plugins/` subsystem.
-
----
-
-## Disclaimer
-
-This repository archives source code that was leaked from Anthropic's npm registry on **2026-03-31**. All original source code is the property of [Anthropic](https://www.anthropic.com).
+运行 `claudec --help` 查看命令选项。工具清单、平台差异和测试命令见[工具与跨平台验收说明](GATEWAY.md)。

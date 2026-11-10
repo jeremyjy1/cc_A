@@ -68,3 +68,9 @@ server05 的原生 WebSearch 已实际返回 Debian 搜索链接。原生 WebFet
 Windows 11 ARM64 的原生 `claudec.cmd -p` 已返回 11 个正确结果，覆盖 ListAgents、WaitForMcpServers、TaskList、CronList、ListMcpResourcesTool、ReadMcpResourceTool、Read、Glob、Grep、ToolSearch 和 LSP。Windows 的会话恢复用例也已通过，覆盖 `-c` 读取上轮历史、`--print` 接收管道中文输入、无本地审批时拒绝写文件，以及回归用临时目录的清理。Windows 的操作与子代理矩阵分别收到 28 和 5 个回执，其中计划模式下的工作区写入按预期拒绝。另在 Windows 原版交互界面确认 Write 和 Edit，将平方函数从加法改为乘法。PowerShell 运行改后的程序，通过 0、7 和 −3 三个输入的断言。Git Bash 返回了测试标记。上述两组测试通过本地测试网关逐项指定调用。真实固定池编程测试另行验证模型自主选择 Read 和 Edit、本地审批及编辑结果。
 
 [三平台验收结果（JSON）](test/gateway/acceptance-results.json)
+
+## 多终端和本地历史
+
+在项目目录的不同终端分别运行 `claudec`，即可使用同一把 A 密钥开启独立对话。普通启动创建新会话。各终端可同时连接同一个固定池，池满时新任务会收到 `pool_busy`。
+
+`claudec history` 离线列出当前密钥、当前工作区的原生会话，按最近更新时间排序。用 `claudec history --search 关键词` 按标题、首条提示、摘要或会话 ID 筛选。用 `claudec --resume 会话ID` 接回指定对话，或用 `claudec --continue` 接回最近一次。多终端并用时，指定 ID 可以避免接错对话。历史支持原来的 `--key-file` 和 `--workspace` 选项。`--simple` 会话不写入原生历史。

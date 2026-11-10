@@ -14,7 +14,7 @@ import { execute, inside, mutations, tools } from './tools'
 
 const defaultEndpoint = new URL('wss://8.153.176.226/v1/ws')
 
-const usage = 'claudec config set-server\nclaudec config set-key\nclaudec [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
+const usage = 'claudec config set-server\nclaudec config set-key\nclaudec history [--search TEXT] [--workspace DIR] [--key-file FILE]\nclaudec [--key-file FILE] [--workspace DIR] [--url URL] [message | -p "message"] [--text-only] [--continue | --resume SESSION] [--mcp-config FILE] [--simple]'
 const safe = (s: string) => stripVTControlCharacters(s).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, '')
 const ui = (s: string) => process.stderr.write(safe(s))
 type Ask = (s: string, signal: AbortSignal) => Promise<boolean>
@@ -226,7 +226,7 @@ export async function gatewayMain(args: string[]) {
     return configureKey()
   }
   const {values:v,positionals,tokens}=parseArgs({args,allowPositionals:true,tokens:true,options:{
-    'continue':{type:'boolean',short:'c'},resume:{type:'string',short:'r'},'mcp-config':{type:'string'},native:{type:'boolean'},simple:{type:'boolean'},'key-file':{type:'string'},workspace:{type:'string'},url:{type:'string'},
+    'continue':{type:'boolean',short:'c'},resume:{type:'string',short:'r'},'mcp-config':{type:'string'},native:{type:'boolean'},simple:{type:'boolean'},'key-file':{type:'string'},search:{type:'string'},workspace:{type:'string'},url:{type:'string'},
     print:{type:'boolean',short:'p'},prompt:{type:'string',multiple:true},'text-only':{type:'boolean'},help:{type:'boolean',short:'h'}
   }})
   if(v.help){console.log(usage);return}
@@ -257,9 +257,26 @@ export async function gatewayMain(args: string[]) {
   const keyPath=resolve(base,v['key-file']||process.env.CC_A_KEY_FILE||defaultKeyPath())
   const root=realpathSync(resolve(base,v.workspace||'.'))
   if(!statSync(root).isDirectory())throw Error('Invalid workspace directory')
+  const key=loadKey(keyPath)
+  const scope=createHash('sha256').update(key).digest('hex').slice(0,24)
+  const state=process.platform==='win32' ? resolve(process.env.LOCALAPPDATA||resolve(homedir(),'AppData/Local'),'cc-a',scope) : resolve(dirname(keyPath),'.cc-a-state',scope)
+  process.env.CLAUDE_CONFIG_DIR=state
+  const history=positionals[0]==='history' && !v.print && !v.prompt && !v.resume && !v.continue
+  if(v.search!==undefined && !history)throw Error('--search 适用于 claudec history')
+  if(history){
+    const {listSessionsImpl}=await import('../utils/listSessionsImpl')
+    const all=await listSessionsImpl({dir:root,includeWorktrees:false})
+    const query=v.search?.trim().toLocaleLowerCase()
+    const sessions=query?all.filter(s=>[s.sessionId,s.customTitle,s.firstPrompt,s.summary].some(value=>value?.toLocaleLowerCase().includes(query))):all
+    for(const session of sessions){
+      const title=safe(session.customTitle || session.firstPrompt || session.summary || '').replace(/\s+/g,' ').trim()
+      console.log(new Date(session.lastModified).toLocaleString(), session.sessionId, [...title].slice(0,100).join(''))
+    }
+    console.log(sessions.length?'用 claudec --resume <会话 ID> 继续。':query?'没有找到匹配的历史会话。':'当前工作区和密钥下暂无历史会话。')
+    return
+  }
   if(!v['text-only']&&(inside(root,realpathSync(keyPath))||inside(root,homedir())))throw Error('Choose a project workspace separate from the gateway credentials')
   const url=parseServer(v.url||process.env.CC_GATEWAY_URL||savedServer())
-  const key=loadKey(keyPath)
   const terminal=v.simple ? process.stderr : process.stdout
   const interactive=Boolean(process.stdin.isTTY && terminal.isTTY)
   if(!interactive&&!v.prompt)throw Error('Interactive mode needs a terminal for input and output. Use -p to run a prompt without a terminal.')
@@ -270,10 +287,7 @@ export async function gatewayMain(args: string[]) {
     await gateway.ready()
     let cleanup: (()=>void) | undefined
     try{
-      const scope=createHash('sha256').update(key).digest('hex').slice(0,24)
-      const state=process.platform==='win32' ? resolve(process.env.LOCALAPPDATA||resolve(homedir(),'AppData/Local'),'cc-a',scope) : resolve(dirname(keyPath),'.cc-a-state',scope)
       mkdirSync(state,{recursive:true,mode:0o700})
-      process.env.CLAUDE_CONFIG_DIR=state
       process.env.DISABLE_AUTOUPDATER='1'
       process.env.DISABLE_INSTALLATION_CHECKS='1'
       process.env.CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL='1'
