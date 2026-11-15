@@ -84,7 +84,9 @@ export class Gateway {
   // Keep local approvals and mutations ordered across both VM slots.
   private local = Promise.resolve()
 
-  constructor(url: URL, key: string, private readonly idleTimeoutMs=10 * 60_000, private readonly defaults: InferenceOptions = {}) {
+  // C may stay silent during thinking and owns the 30-minute inference deadline.
+  // Allow one minute for its final result or timeout error to reach this client.
+  constructor(url: URL, key: string, private readonly idleTimeoutMs=31 * 60_000, private readonly defaults: InferenceOptions = {}) {
     const tls = url.origin === defaultEndpoint.origin
       ? {ca:[...rootCertificates,readFileSync(resolve(import.meta.dir,'gateway-ca.crt'),'utf8')],rejectUnauthorized:true}
       : undefined
