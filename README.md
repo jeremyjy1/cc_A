@@ -117,3 +117,10 @@ Auto 使用本项目的审查实现。审核和原工具调用关联，五台 VM
 使用 `/resume`、`claudec --continue` 或 `claudec --resume <A 会话 ID>` 即可。首次成功回复后，A 在该回复的本地记录中保存一个由 B 分配的远端检查点。后续主对话只发送这个检查点之后的新内容和工作区说明；图片已保存在 C 的对话中时也无需重传。C 的 Claude Code 用原生 `--resume` 读取对应历史，并把新的一轮保存为独立分支。两个终端从同一条历史继续时，各自保留自己的后续内容。
 
 旧历史没有远端检查点时，首次仍按原有网关窗口传递最近历史。未升级的池可继续按原方式工作。恢复已有远端检查点需要原 A 密钥、原池以及 VM 上保存的 Claude 会话文件。清理这些文件或更换密钥后，请新建会话；旁问、子任务和模型目录查询独立运行。
+
+
+## Visible Claude Code progress
+
+A requests public commentary with `progress: true`. B replaces this with its internal `pool_progress` flag and forwards `agent.progress` only to that requesting turn. C emits Claude Code's public assistant text preceding tool activity; thinking blocks, signatures, tool arguments, and tool results are not included in this event. A renders the text through its existing assistant-message UI (simple mode writes progress to stderr). The final answer remains separate and is not repeated as progress.
+
+Update B, then C and A to enable this across the connection. Older components continue without commentary. Existing tool activity still uses the normal tool UI. A model may remain quiet while processing; this feature does not fabricate activity or reveal private thinking. Progress is not counted as final-answer characters in B.

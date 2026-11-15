@@ -59,6 +59,7 @@ export async function* nativeQuery(params: QueryParams) {
       session: context.agentId ? undefined : {parent:continuation.parent, saved:id=>{checkpoint=id}},
       inference, images, names: available.map(d=>d.name),
       signal: controller.signal,
+      progress: text => events.enqueue(createAssistantMessage({content:text})),
       call: async (name,args,id,signal,review) => {
         const workspaceRoot = getCwd()
         const spec = available.find(d=>d.name===name)
