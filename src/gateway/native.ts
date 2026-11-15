@@ -19,6 +19,7 @@ import type { Gateway } from './client'
 import { conversationPrompt, conversationImages, remoteContinuation } from './transcript'
 import { autoReviewPrompt, hostReviewable } from './autoReview'
 import { embeddedCatalog } from './registry'
+import { createThinkingStream } from './thinkingStream'
 
 type Connection = { client: Gateway; root: string; textOnly: boolean; inference?: () => InferenceOptions }
 export let nativeGateway: Connection | undefined
@@ -33,6 +34,8 @@ export async function* nativeQuery(params: QueryParams) {
   parent.addEventListener('abort', abort, {once:true})
   if (parent.aborted) abort()
   const events = new Stream<any>()
+  const liveThinking = createThinkingStream(event=>events.enqueue(event),
+    text=>createAssistantMessage({content:[{type:'thinking',thinking:text,signature:''}]}))
   let context = params.toolUseContext
   const shells = shellProfiles(root,['Bash','PowerShell'])
   const available = embeddedCatalog.filter(d => {
@@ -59,9 +62,12 @@ export async function* nativeQuery(params: QueryParams) {
       session: context.agentId ? undefined : {parent:continuation.parent, saved:id=>{checkpoint=id}},
       inference, images, names: available.map(d=>d.name),
       signal: controller.signal,
-      progress: text => events.enqueue(createAssistantMessage({content:text})),
+      progress: text => { liveThinking.finish(); events.enqueue(createAssistantMessage({content:text})) },
+      thinkingDelta: text => liveThinking.delta(text),
+      thinkingDone: () => liveThinking.finish(),
       thinking: text => events.enqueue(createAssistantMessage({content:[{type:'thinking', thinking:text, signature:''}]})),
       call: async (name,args,id,signal,review) => {
+        liveThinking.finish()
         const workspaceRoot = getCwd()
         const spec = available.find(d=>d.name===name)
         const tool = findToolByName(context.options.tools, name)

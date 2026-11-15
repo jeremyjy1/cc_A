@@ -129,3 +129,10 @@ Update B, then C and A to enable this across the connection. Older components co
 ## Thinking 显示
 
 A 请求 `thinking: true`，B 转为 `pool_thinking`，C 将 Claude Code 完整 assistant 消息中的 `thinking` 文本作为独立 `agent.thinking` 事件返回。A 使用原生 Thinking 区块（Ctrl+O 展开），简单模式写到 stderr；最终回答保持独立。思考块随 A 会话历史保存，但不会被转换为后续普通文本提示词。不会传输签名或 redacted_thinking 数据，也不会把思考计入 B 的最终回答字符数。按完整块发送，不重复发送 stream_event 中的 thinking_delta。需要同时更新 B、C 宿主机和 A；上游未提供 thinking 时没有该区块。
+
+
+## Live thinking summaries
+
+Updated A requests `thinking_stream: true` together with `thinking: true`. B strips client-supplied internal fields and negotiates `pool_thinking_stream` for C. C forwards official `thinking_delta` summary text immediately as `agent.thinking.delta`, reconciles the completed assistant block without replaying it, then sends `agent.thinking.completed`. Signatures and redacted blocks are never forwarded.
+
+A updates its existing live thinking preview on each fragment and saves one completed block. Expand thinking with Ctrl+O to read the preview. Final-answer text remains separate. Older A/B/C combinations retain completed-block delivery; deploy B and A to activate streaming after updating C. No login or credential changes are required.

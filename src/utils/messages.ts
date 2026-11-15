@@ -3010,6 +3010,9 @@ export function handleMessageFromStream(
       }
       switch (message.event.content_block.type) {
         case 'thinking':
+          onStreamingThinking?.(() => ({thinking:'',isStreaming:true}))
+          onSetStreamMode('thinking')
+          return
         case 'redacted_thinking':
           onSetStreamMode('thinking')
           return
@@ -3074,6 +3077,10 @@ export function handleMessageFromStream(
         }
         case 'thinking_delta':
           onUpdateLength(message.event.delta.thinking)
+          onStreamingThinking?.(current => ({
+            thinking: (current?.isStreaming ? current.thinking : '') + message.event.delta.thinking,
+            isStreaming: true,
+          }))
           return
         case 'signature_delta':
           // Signatures are cryptographic authentication strings, not model
