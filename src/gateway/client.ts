@@ -69,6 +69,7 @@ function savedServer() {
 type Frame = Record<string, any>
 
 type NativeDispatch = {
+  thinking?: (text:string) => void
   progress?: (text:string) => void
   session?: {parent?:string; saved:(checkpoint:string)=>void}
   modelCatalog?: boolean
@@ -146,6 +147,7 @@ export class Gateway {
       const reviews = new Map<string,(allow:boolean)=>void>()
       let started = false
       let progressBytes = 0
+      let thinkingBytes = 0
       const drain = (why?: string) => {
         // Drain the cancelled turn until C reports its end, keeping sibling turns live.
         finish(why)
@@ -188,6 +190,15 @@ export class Gateway {
           return
         }
         if (!started) throw Error()
+        if (m.type === 'agent.thinking') {
+          if (typeof m.text !== 'string') throw Error()
+          thinkingBytes += Buffer.byteLength(m.text)
+          if (thinkingBytes > (2 << 20)) throw Error('Thinking output limit exceeded')
+          const text = safe(m.text)
+          if (native?.thinking) native.thinking(text)
+          else if (!native) ui('[Thinking] ' + text + '\n')
+          return
+        }
         if (m.type === 'agent.progress') {
           if (typeof m.text !== 'string') throw Error()
           progressBytes += Buffer.byteLength(m.text)
@@ -276,7 +287,7 @@ export class Gateway {
         if(native)void dispatch().catch(()=>finish('Could not return tool result'))
         else this.local=this.local.then(dispatch).catch(()=>finish('Could not return tool result'))
       }})
-      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', progress:!native?.modelCatalog, save_session:native?.session ? true : undefined, resume_from:native?.session?.parent, model_catalog:native?.modelCatalog, ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
+      this.socket.send(JSON.stringify({type:native?.images?.length?'user.images':'user.message', progress:!native?.modelCatalog, thinking:!native?.modelCatalog, save_session:native?.session ? true : undefined, resume_from:native?.session?.parent, model_catalog:native?.modelCatalog, ...inference, images:native?.images?.length?native.images.map(({media_type,size})=>({media_type,size})):undefined, id, text, tools:enabled, tool_names:native?.names??tools,
         shells:enabled ? shellProfiles(root,native?.names??tools) : {}}))
     })
   }

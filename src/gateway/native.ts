@@ -60,6 +60,7 @@ export async function* nativeQuery(params: QueryParams) {
       inference, images, names: available.map(d=>d.name),
       signal: controller.signal,
       progress: text => events.enqueue(createAssistantMessage({content:text})),
+      thinking: text => events.enqueue(createAssistantMessage({content:[{type:'thinking', thinking:text, signature:''}]})),
       call: async (name,args,id,signal,review) => {
         const workspaceRoot = getCwd()
         const spec = available.find(d=>d.name===name)

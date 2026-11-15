@@ -124,3 +124,8 @@ Auto 使用本项目的审查实现。审核和原工具调用关联，五台 VM
 A requests public commentary with `progress: true`. B replaces this with its internal `pool_progress` flag and forwards `agent.progress` only to that requesting turn. C emits Claude Code's public assistant text preceding tool activity; thinking blocks, signatures, tool arguments, and tool results are not included in this event. A renders the text through its existing assistant-message UI (simple mode writes progress to stderr). The final answer remains separate and is not repeated as progress.
 
 Update B, then C and A to enable this across the connection. Older components continue without commentary. Existing tool activity still uses the normal tool UI. A model may remain quiet while processing; this feature does not fabricate activity or reveal private thinking. Progress is not counted as final-answer characters in B.
+
+
+## Thinking 显示
+
+A 请求 `thinking: true`，B 转为 `pool_thinking`，C 将 Claude Code 完整 assistant 消息中的 `thinking` 文本作为独立 `agent.thinking` 事件返回。A 使用原生 Thinking 区块（Ctrl+O 展开），简单模式写到 stderr；最终回答保持独立。思考块随 A 会话历史保存，但不会被转换为后续普通文本提示词。不会传输签名或 redacted_thinking 数据，也不会把思考计入 B 的最终回答字符数。按完整块发送，不重复发送 stream_event 中的 thinking_delta。需要同时更新 B、C 宿主机和 A；上游未提供 thinking 时没有该区块。
